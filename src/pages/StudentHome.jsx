@@ -17,12 +17,12 @@ export const StudentHome = () => {
     minPrice: '',
     maxPrice: '',
     beds: '',
+    rooms: '',
   });
 
   useEffect(() => {
     const loadHomeData = async () => {
       setLoading(true);
-
       try {
         const [featuredResponse, allResponse] = await Promise.all([
           apartmentsAPI.getApartments({
@@ -35,8 +35,21 @@ export const StudentHome = () => {
         const featuredData = featuredResponse.data;
         const allData = allResponse.data;
 
-        setApartments(Array.isArray(featuredData) ? featuredData : (featuredData?.apartments || []));
-        setAllApartments(Array.isArray(allData) ? allData : (allData?.apartments || []));
+        let featuredList = Array.isArray(featuredData) ? featuredData : (featuredData?.apartments || []);
+        const allList = Array.isArray(allData) ? allData : (allData?.apartments || []);
+
+        // Frontend fallback filtering for Featured section
+        featuredList = featuredList.filter(apt => {
+          const matchesMinPrice = !filters.minPrice || apt.price >= Number(filters.minPrice);
+          const matchesMaxPrice = !filters.maxPrice || apt.price <= Number(filters.maxPrice);
+          const matchesBeds = !filters.beds || (apt.beds >= Number(filters.beds) || apt.bedrooms >= Number(filters.beds));
+          const matchesRooms = !filters.rooms || (apt.rooms >= Number(filters.rooms) || apt.living_rooms >= Number(filters.rooms));
+          
+          return matchesMinPrice && matchesMaxPrice && matchesBeds && matchesRooms;
+        });
+
+        setApartments(featuredList);
+        setAllApartments(allList);
       } catch (error) {
         console.error('Error fetching homepage data:', error);
       } finally {
@@ -44,7 +57,11 @@ export const StudentHome = () => {
       }
     };
 
-    loadHomeData();
+    const delayDebounceFn = setTimeout(() => {
+      loadHomeData();
+    }, 500);
+
+    return () => clearTimeout(delayDebounceFn);
   }, [filters, searchQuery, storeVersion]);
 
   const topLocations = useMemo(() => {
@@ -60,32 +77,12 @@ export const StudentHome = () => {
         if (right.count !== left.count) {
           return right.count - left.count;
         }
-
         return left.name.localeCompare(right.name);
       });
   }, [allApartments]);
 
   const handleSearch = (event) => {
     event.preventDefault();
-    setStoreSearch(searchQuery, filters);
-  };
-
-  const setStoreSearch = async (query, nextFilters) => {
-    setLoading(true);
-
-    try {
-      const response = await apartmentsAPI.getApartments({
-        q: query,
-        ...nextFilters,
-      });
-
-      const data = response.data;
-      setApartments(Array.isArray(data) ? data : (data?.apartments || []));
-    } catch (error) {
-      console.error('Error searching apartments:', error);
-    } finally {
-      setLoading(false);
-    }
   };
 
   const visibleApartments = apartments.slice(0, 6);
@@ -114,7 +111,7 @@ export const StudentHome = () => {
               </div>
               <div className="rounded-2xl bg-slate-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Featured</p>
-                <p className="mt-2 text-3xl font-black text-slate-900">{visibleApartments.length}</p>
+                <p className="mt-2 text-3xl font-black text-slate-900">{apartments.length}</p>
               </div>
               <div className="rounded-2xl bg-slate-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Locations</p>
@@ -132,7 +129,7 @@ export const StudentHome = () => {
           <form onSubmit={handleSearch} className="mt-8 space-y-4">
             <div className="flex flex-col gap-4 md:flex-row">
               <div className="relative flex-1">
-                <i className="fa-solid fa-magnifying-glass absolute left-4 top-4 text-black/60"></i>
+                <i className="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-black/60"></i>
                 <input
                   type="text"
                   placeholder="Search apartments, districts, or descriptions..."
@@ -144,37 +141,53 @@ export const StudentHome = () => {
 
               <button
                 type="submit"
-                className="rounded-2xl bg-[#245999] px-8 py-4 font-bold text-white transition hover:bg-[#1f4f86]"
+                className="rounded-2xl bg-primary px-8 py-4 font-bold text-white transition hover:opacity-90"
               >
                 Search
               </button>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <input
-                type="number"
-                placeholder="Min price"
-                value={filters.minPrice}
-                onChange={(event) => setFilters((current) => ({ ...current, minPrice: event.target.value }))}
-                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#245999]/20"
-              />
-              <input
-                type="number"
-                placeholder="Max price"
-                value={filters.maxPrice}
-                onChange={(event) => setFilters((current) => ({ ...current, maxPrice: event.target.value }))}
-                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#245999]/20"
-              />
-              <select
-                value={filters.beds}
-                onChange={(event) => setFilters((current) => ({ ...current, beds: event.target.value }))}
-                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#245999]/20"
-              >
-                <option value="">Any bedrooms</option>
-                <option value="1">1+ bedrooms</option>
-                <option value="2">2+ bedrooms</option>
-                <option value="3">3+ bedrooms</option>
-              </select>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <label className="block mb-1 text-xs font-bold text-slate-500 uppercase ml-2">Min Price</label>
+                <input
+                  type="number"
+                  placeholder="e.g. 1000"
+                  value={filters.minPrice}
+                  onChange={(event) => setFilters((current) => ({ ...current, minPrice: event.target.value }))}
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+              <div>
+                <label className="block mb-1 text-xs font-bold text-slate-500 uppercase ml-2">Max Price</label>
+                <input
+                  type="number"
+                  placeholder="e.g. 5000"
+                  value={filters.maxPrice}
+                  onChange={(event) => setFilters((current) => ({ ...current, maxPrice: event.target.value }))}
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+              <div>
+                <label className="block mb-1 text-xs font-bold text-slate-500 uppercase ml-2">Beds</label>
+                <input
+                  type="number"
+                  placeholder="e.g. 2"
+                  value={filters.beds}
+                  onChange={(event) => setFilters((current) => ({ ...current, beds: event.target.value }))}
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+              <div>
+                <label className="block mb-1 text-xs font-bold text-slate-500 uppercase ml-2">Rooms</label>
+                <input
+                  type="number"
+                  placeholder="e.g. 3"
+                  value={filters.rooms}
+                  onChange={(event) => setFilters((current) => ({ ...current, rooms: event.target.value }))}
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
             </div>
           </form>
         </div>
@@ -196,6 +209,7 @@ export const StudentHome = () => {
 
         {loading ? (
           <div className="py-16 text-center text-slate-500">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto mb-4"></div>
             Loading apartments...
           </div>
         ) : visibleApartments.length > 0 ? (
@@ -217,7 +231,7 @@ export const StudentHome = () => {
         <div className="mb-6 flex items-center justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">Top Locations</p>
-            <h2 className="mt-2 text-3xl font-black text-slate-900">Most active districts in Assiut</h2>
+            <h2 className="mt-2 text-3xl font-black text-slate-900">Most active districts</h2>
           </div>
 
           <button
@@ -231,11 +245,11 @@ export const StudentHome = () => {
 
         {topLocations.length > 0 ? (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {topLocations.map((location) => (
+            {topLocations.slice(0, 6).map((location) => (
               <button
                 key={location.name}
                 type="button"
-                onClick={() => navigate(`/locations?location=${encodeURIComponent(location.name)}`)}
+                onClick={() => navigate(`/search?district=${encodeURIComponent(location.name)}`)}
                 className="group rounded-[28px] border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
               >
                 <div className="flex items-center justify-between gap-4">
@@ -244,14 +258,14 @@ export const StudentHome = () => {
                     <h3 className="mt-2 text-2xl font-black text-slate-900">{location.name}</h3>
                   </div>
 
-                  <div className="rounded-2xl bg-slate-300 px-4 py-3 text-right text-white">
-                    <p className="text-xs uppercase tracking-wide text-white/70">Apartments</p>
-                    <p className="text-2xl font-black">{location.count}</p>
+                  <div className="rounded-2xl bg-primary/10 px-4 py-3 text-right">
+                    <p className="text-xs uppercase tracking-wide text-primary/60">Units</p>
+                    <p className="text-2xl font-black text-primary">{location.count}</p>
                   </div>
                 </div>
 
                 <div className="mt-6 flex items-center justify-between text-sm text-slate-500">
-                  <span>Sorted by popularity then name</span>
+                  <span>Explore this area</span>
                   <i className="fas fa-arrow-right transition group-hover:translate-x-1"></i>
                 </div>
               </button>

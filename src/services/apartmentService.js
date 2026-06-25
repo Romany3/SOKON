@@ -39,12 +39,12 @@ const normalizeStatus = (apartment) => {
     return 'cancelled';
   }
   if (status === 'pending') {
-    return 'pending_approval';
+    return 'pending';
   }
   if (!status && apartment.verified === false) {
-    return 'pending_approval';
+    return 'pending';
   }
-  return status || 'pending_approval';
+  return status || 'pending';
 };
 
 const createOwner = (apartment) => {
@@ -234,18 +234,20 @@ const normalizeCreatePayload = async (input, baseApartment = null) => {
 
 export const apartmentsAPI = {
   getApartments: async (filters = {}) => {
-    const query = filters.query || filters.q || filters.searchQuery || '';
-    if (query && `${query}`.trim()) {
-      return apartmentsAPI.searchApartments(query);
-    }
-
+    const q = filters.q || filters.query || filters.searchQuery;
     const params = stripEmptyParams({
+      q: q,
       ownerId: filters.ownerId,
       city: filters.city,
       district: filters.district,
+      minPrice: filters.minPrice,
+      maxPrice: filters.maxPrice,
+      beds: filters.beds,
+      rooms: filters.rooms,
     });
 
-    const response = await apiClient.get('/apartments', { params });
+    const endpoint = q ? '/apartments/search' : '/apartments';
+    const response = await apiClient.get(endpoint, { params });
     return { data: { apartments: normalizeApartmentList(response.data) } };
   },
 

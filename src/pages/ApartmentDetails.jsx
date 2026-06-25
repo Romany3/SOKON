@@ -125,7 +125,6 @@ export const ApartmentDetails = () => {
   const availableSpots = Math.max(capacity - occupiedCount, 0);
   const occupancyProgress = capacity > 0 ? Math.min((occupiedCount / capacity) * 100, 100) : 0;
   const isFull = capacity > 0 && availableSpots <= 0;
-  const mainMedia = mediaUrl ? 'video' : 'image';
 
   const currentImage = images[selectedImageIndex] || images[0] || '';
 
@@ -135,18 +134,12 @@ export const ApartmentDetails = () => {
   };
 
   const goToNextImage = () => {
-    if (!images.length) {
-      return;
-    }
-
+    if (!images.length) return;
     setSelectedImageIndex((current) => (current + 1) % images.length);
   };
 
   const goToPreviousImage = () => {
-    if (!images.length) {
-      return;
-    }
-
+    if (!images.length) return;
     setSelectedImageIndex((current) => (current - 1 + images.length) % images.length);
   };
 
@@ -187,9 +180,7 @@ export const ApartmentDetails = () => {
   };
 
   const handleBooking = async (event) => {
-    if (event) {
-      event.preventDefault();
-    }
+    if (event) event.preventDefault();
 
     if (!['student', 'client'].includes(user?.role)) {
       alert('Only students can book apartments');
@@ -242,6 +233,7 @@ export const ApartmentDetails = () => {
       <div className="w-full min-h-screen bg-light">
         <Navbar />
         <div className="py-20 text-center">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-gray-600">Loading apartment details...</p>
         </div>
       </div>
@@ -270,77 +262,60 @@ export const ApartmentDetails = () => {
           </div>
         )}
 
-        <div className="overflow-hidden rounded-[32px] bg-white shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
-          <div className="relative">
-            <div className="h-[420px] w-full bg-slate-900">
-              {mainMedia === 'video' ? (
-                <video
-                  controls
-                  className="h-full w-full object-cover"
-                  src={mediaUrl}
-                  poster={images[0]}
-                />
-              ) : (
-                <img
-                  src={images[0]}
-                  alt={apartment.title || apartment.name}
-                  className="h-full w-full object-cover"
-                />
-              )}
-            </div>
+        <div className="mb-8">
+          <h1 className="text-3xl font-black tracking-tight text-slate-900 md:text-4xl">
+            {apartment.title || apartment.name}
+          </h1>
 
-            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/90 via-slate-950/40 to-transparent px-6 py-6 text-white md:px-8 md:py-8">
-              <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-                <div className="max-w-3xl">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <h1 className="text-3xl font-black tracking-tight md:text-4xl">
-                      {apartment.title || apartment.name}
-                    </h1>
-                    <span
-                      className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.2em] backdrop-blur ${
-                        isVerified ? 'bg-emerald-500/20 text-emerald-200' : 'bg-amber-500/20 text-amber-200'
-                      }`}
-                    >
-                      <i className={`fas ${isVerified ? 'fa-circle-check' : 'fa-circle-exclamation'}`}></i>
-                      {isVerified ? 'Verified' : 'Not verified'}
-                    </span>
-                    {apartment.rating_average !== undefined && apartment.rating_count > 0 && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 px-3 py-1 text-sm font-bold text-amber-400 backdrop-blur">
-                        ⭐ {Number(apartment.rating_average).toFixed(1)} / 5
-                        <span className="text-xs text-white/60 font-normal">({apartment.rating_count})</span>
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-3 flex items-center gap-2 text-sm text-white/80">
-                    <i className="fas fa-location-dot text-blue-300"></i>
-                    {locationLabel || 'Location not set'}
-                  </p>
-                  <div className="mt-4 flex flex-wrap gap-3 text-sm font-semibold">
-                    {apartment.bedrooms ? (
-                      <span className="rounded-full bg-white/10 px-3 py-1 backdrop-blur">
-                        <i className="fas fa-bed mr-2 text-blue-300"></i>
-                        {apartment.bedrooms} Bedrooms
-                      </span>
-                    ) : null}
-                    {apartment.bathrooms ? (
-                      <span className="rounded-full bg-white/10 px-3 py-1 backdrop-blur">
-                        <i className="fas fa-bath mr-2 text-blue-300"></i>
-                        {apartment.bathrooms} Bathrooms
-                      </span>
-                    ) : null}
-                  </div>
+          {/* Verification Status Card */}
+          <div className="mt-4">
+            {isVerified ? (
+              <div className="flex items-center gap-3 rounded-2xl bg-emerald-50 border border-emerald-100 p-4 text-emerald-700">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100">
+                  <i className="fas fa-check-circle text-lg"></i>
                 </div>
-
-                <div className="rounded-[28px] bg-white/10 px-5 py-4 backdrop-blur">
-                  <span className="block text-xs font-semibold uppercase tracking-[0.3em] text-white/70">
-                    Price
-                  </span>
-                  <div className="mt-2 text-3xl font-black">
-                    ${apartment.price}
-                    <span className="ml-2 text-sm font-semibold text-white/70">/month</span>
-                  </div>
+                <div>
+                  <p className="font-bold">Verified Listing</p>
+                  <p className="text-sm opacity-90">This apartment is verified by Sokon administrator</p>
                 </div>
               </div>
+            ) : (
+              <div className="flex items-center gap-3 rounded-2xl bg-amber-50 border border-amber-100 p-4 text-amber-700">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100">
+                  <i className="fas fa-exclamation-circle text-lg"></i>
+                </div>
+                <div>
+                  <p className="font-bold">Not Verified Yet</p>
+                  <p className="text-sm opacity-90">This apartment is not verified yet by Sokon administrator</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="overflow-hidden rounded-[32px] bg-white shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
+          {/* Main Media Section (Video First) */}
+          <div className="relative">
+            <div className="w-full bg-slate-900 overflow-hidden">
+              {mediaUrl ? (
+                <div className="aspect-video w-full">
+                  <video
+                    controls
+                    autoPlay
+                    muted
+                    className="h-full w-full object-cover"
+                    src={mediaUrl}
+                  />
+                </div>
+              ) : images.length > 0 ? (
+                <div className="h-[420px] w-full">
+                  <img
+                    src={images[0]}
+                    alt={apartment.title || apartment.name}
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+              ) : null}
             </div>
 
             <div className="absolute right-4 top-4 flex flex-wrap gap-3">
@@ -351,7 +326,7 @@ export const ApartmentDetails = () => {
                   className="rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-slate-900 shadow-lg backdrop-blur transition hover:bg-white"
                   title="Open in Google Maps"
                 >
-                  <i className="fas fa-map-location-dot mr-2 text-[#245999]"></i>
+                  <i className="fas fa-map-location-dot mr-2 text-primary"></i>
                   Map
                 </button>
               )}
@@ -359,25 +334,47 @@ export const ApartmentDetails = () => {
           </div>
 
           <div className="grid gap-8 p-6 md:p-8">
+            {/* Header info after video */}
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b border-slate-100 pb-6">
+               <div>
+                  <p className="flex items-center gap-2 text-sm text-slate-500">
+                    <i className="fas fa-location-dot text-primary"></i>
+                    {locationLabel || 'Location not set'}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-3 text-sm font-semibold text-slate-700">
+                    {apartment.bedrooms ? (
+                      <span className="rounded-full bg-slate-100 px-3 py-1">
+                        <i className="fas fa-bed mr-2 text-primary"></i>
+                        {apartment.bedrooms} Beds
+                      </span>
+                    ) : null}
+                    {apartment.bathrooms ? (
+                      <span className="rounded-full bg-slate-100 px-3 py-1">
+                        <i className="fas fa-bath mr-2 text-primary"></i>
+                        {apartment.bathrooms} Bathrooms
+                      </span>
+                    ) : null}
+                    {apartment.rooms ? (
+                      <span className="rounded-full bg-slate-100 px-3 py-1">
+                        <i className="fas fa-door-open mr-2 text-primary"></i>
+                        {apartment.rooms} Rooms
+                      </span>
+                    ) : null}
+                  </div>
+               </div>
+               <div className="rounded-2xl bg-primary/5 px-6 py-4">
+                  <span className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    Monthly Rent
+                  </span>
+                  <div className="mt-1 text-3xl font-black text-primary">
+                    ${apartment.price}
+                  </div>
+               </div>
+            </div>
+
             <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
               <div>
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <h2 className="text-2xl font-black text-slate-900">Description</h2>
-                    {apartment.rating_average !== undefined && apartment.rating_count > 0 && (
-                      <span className="text-sm font-bold text-amber-500">
-                        ⭐ {Number(apartment.rating_average).toFixed(1)} ({apartment.rating_count} reviews)
-                      </span>
-                    )}
-                  </div>
-                  <span
-                    className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
-                      isVerified ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
-                    }`}
-                  >
-                    {isVerified ? 'Verified' : 'Not verified'}
-                  </span>
-                </div>
+                <h2 className="text-2xl font-black text-slate-900">Description</h2>
                 <p className="mt-4 leading-7 text-slate-600">
                   {apartment.description_en || apartment.description_ar || apartment.description}
                 </p>
@@ -401,7 +398,7 @@ export const ApartmentDetails = () => {
 
                 <div className="mt-5 h-3 overflow-hidden rounded-full bg-slate-200">
                   <div
-                    className={`h-full rounded-full ${isFull ? 'bg-rose-500' : 'bg-[#245999]'}`}
+                    className={`h-full rounded-full ${isFull ? 'bg-rose-500' : 'bg-primary'}`}
                     style={{ width: `${occupancyProgress}%` }}
                   />
                 </div>
@@ -409,40 +406,46 @@ export const ApartmentDetails = () => {
                 <p className="mt-3 text-sm text-slate-500">
                   {isFull
                     ? 'This apartment is currently full.'
-                    : `${availableSpots} spot${availableSpots === 1 ? '' : 's'} remain before the apartment is hidden from homepage listings.`}
+                    : `${availableSpots} spot${availableSpots === 1 ? '' : 's'} remain available.`}
                 </p>
               </div>
             </div>
 
+            {/* Detailed Info Tiles */}
             <div className="rounded-[28px] bg-slate-50 p-5">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">All details</p>
-                  <h3 className="mt-2 text-2xl font-black text-slate-900">Property information</h3>
-                </div>
-                <div className="rounded-2xl bg-white px-4 py-3 text-right shadow-sm">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Status</p>
-                  <p className={`mt-1 font-black ${isVerified ? 'text-emerald-600' : 'text-amber-600'}`}>
-                    {isVerified ? 'Verified listing' : 'Pending verification'}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <InfoTile label="Price" value={`$${apartment.price || 0}/month`} />
-                <InfoTile label="Bedrooms" value={apartment.bedrooms || 0} />
-                <InfoTile label="Bathrooms" value={apartment.bathrooms || 0} />
-                <InfoTile label="Living Rooms" value={apartment.living_rooms || 0} />
-                <InfoTile label="Floor" value={apartment.floor || 0} />
-                <InfoTile label="Max People" value={apartment.max_people || 0} />
-                <InfoTile label="Available People" value={apartment.available_people || 0} />
-                <InfoTile label="Occupied" value={`${occupiedCount} / ${capacity || apartment.max_people || 0}`} />
-                <InfoTile label="Address" value={apartment.address || 'Not set'} />
+              <h3 className="text-xl font-black text-slate-900 mb-5">Property Information</h3>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <InfoTile label="Floor" value={apartment.floor || 'N/A'} />
+                <InfoTile label="Capacity" value={apartment.max_people || 0} />
+                <InfoTile label="Available" value={apartment.available_people || 0} />
                 <InfoTile label="City" value={apartment.city || 'Not set'} />
                 <InfoTile label="District" value={apartment.district || 'Not set'} />
-                <InfoTile label="Location" value={apartment.locationAddress || apartment.location || 'Not set'} />
+                <InfoTile label="Address" value={apartment.address || 'Not set'} />
               </div>
             </div>
+
+            {/* Gallery Section */}
+            {images.length > 0 && (
+              <div>
+                <h2 className="text-2xl font-black text-slate-900 mb-4">Image Gallery</h2>
+                <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                  {images.map((image, index) => (
+                    <button
+                      key={index}
+                      type="button"
+                      onClick={() => openGallery(index)}
+                      className="group relative aspect-[4/3] overflow-hidden rounded-2xl"
+                    >
+                      <img
+                        src={image}
+                        alt={`Gallery ${index + 1}`}
+                        className="h-full w-full object-cover transition duration-300 group-hover:scale-110"
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {apartment.owner && (
               <div className="rounded-[28px] bg-slate-50 p-5">
@@ -456,9 +459,6 @@ export const ApartmentDetails = () => {
                     <div>
                       <h3 className="text-xl font-black text-slate-900">{apartment.owner.fullName}</h3>
                       <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">Owner</p>
-                      <p className="mt-1 text-sm text-slate-500">
-                        {apartment.owner.phoneNumber || apartment.owner.email || 'No contact info'}
-                      </p>
                     </div>
                   </div>
 
@@ -468,47 +468,14 @@ export const ApartmentDetails = () => {
                       onClick={handleMessageOwner}
                       className="rounded-full bg-white px-5 py-3 font-semibold text-slate-900 shadow-sm transition hover:bg-slate-100"
                     >
-                      <i className="far fa-comment-dots mr-2 text-[#245999]"></i>
+                      <i className="far fa-comment-dots mr-2 text-primary"></i>
                       Message owner
                     </button>
                   ) : (
                     <div className="rounded-full bg-slate-100 px-5 py-3 text-sm font-semibold text-slate-500">
-                      Message owner becomes available after booking approval
+                      Message available after booking approval
                     </div>
                   )}
-                </div>
-              </div>
-            )}
-
-            {images.length > 0 && (
-              <div>
-                <div className="mb-4 flex items-end justify-between gap-4">
-                  <div>
-                    <h2 className="text-2xl font-black text-slate-900">Gallery</h2>
-                    <p className="text-sm text-slate-500">Click any image to open the full viewer</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-                  {images.slice(0, 4).map((image, index) => (
-                    <button
-                      key={image}
-                      type="button"
-                      onClick={() => openGallery(index)}
-                      className="group relative aspect-[4/3] overflow-hidden rounded-2xl"
-                    >
-                      <img
-                        src={image}
-                        alt={`Gallery ${index + 1}`}
-                        className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-                      />
-                      {index === 3 && images.length > 4 && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-slate-950/60 text-2xl font-black text-white">
-                          +{images.length - 4}
-                        </div>
-                      )}
-                    </button>
-                  ))}
                 </div>
               </div>
             )}
@@ -526,9 +493,9 @@ export const ApartmentDetails = () => {
                     setIsBookingModalOpen(true);
                   }}
                   disabled={isFull || hasRented}
-                  className="flex-1 rounded-2xl bg-[#245999] py-4 text-center text-lg font-black text-white transition hover:bg-[#1f4f86] disabled:cursor-not-allowed disabled:bg-slate-300"
+                  className="flex-1 rounded-2xl bg-primary py-4 text-center text-lg font-black text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-slate-300"
                 >
-                  {hasRented ? 'You already rented this' : isFull ? 'Apartment is full' : 'Rent now'}
+                  {hasRented ? 'Already rented' : isFull ? 'Full' : 'Rent now'}
                 </button>
               )}
 
@@ -536,7 +503,7 @@ export const ApartmentDetails = () => {
                 <button
                   type="button"
                   onClick={() => navigate('/login')}
-                  className="flex-1 rounded-2xl bg-[#245999] py-4 text-center text-lg font-black text-white transition hover:bg-[#1f4f86]"
+                  className="flex-1 rounded-2xl bg-primary py-4 text-center text-lg font-black text-white transition hover:opacity-90"
                 >
                   Login to rent
                 </button>
@@ -559,14 +526,13 @@ export const ApartmentDetails = () => {
         <div className="mt-8 overflow-hidden rounded-[32px] bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.08)] md:p-8">
           <h2 className="text-2xl font-black text-slate-900 mb-6">Reviews & Ratings</h2>
 
-          {/* Average rating summary card */}
           <div className="mb-8 flex flex-col gap-6 rounded-2xl bg-slate-50 p-6 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-4">
               <div className="text-center">
-                <span className="block text-4xl font-black text-[#245999]">
+                <span className="block text-4xl font-black text-primary">
                   {apartment.rating_average !== undefined ? Number(apartment.rating_average).toFixed(1) : '0.0'}
                 </span>
-                <span className="text-xs text-slate-400">out of 5 stars</span>
+                <span className="text-xs text-slate-400">out of 5</span>
               </div>
               <div className="h-12 w-[1px] bg-slate-200"></div>
               <div>
@@ -581,13 +547,12 @@ export const ApartmentDetails = () => {
                   ))}
                 </div>
                 <p className="mt-1 text-sm text-slate-500 font-semibold">
-                  {apartment.rating_count || 0} reviews total
+                  {apartment.rating_count || 0} reviews
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Reviews list */}
           <div className="space-y-6">
             {reviews.length > 0 ? (
               reviews.map((review) => (
@@ -610,45 +575,38 @@ export const ApartmentDetails = () => {
                           <i key={i} className={`${i < review.rating ? 'fa-solid' : 'fa-regular'} fa-star mr-1`}></i>
                         ))}
                       </div>
-                      <p className="mt-2 text-sm text-slate-600 leading-relaxed">
-                        {review.comment || 'No comment provided.'}
+                      <p className="mt-2 text-sm text-slate-600">
+                        {review.comment || 'No comment.'}
                       </p>
                     </div>
                   </div>
                 </div>
               ))
             ) : (
-              <p className="text-center text-slate-400 py-6">No reviews yet for this apartment.</p>
+              <p className="text-center text-slate-400 py-6">No reviews yet.</p>
             )}
           </div>
 
-          {/* Submission Form */}
           {isEligible && (
             <div className="mt-10 border-t border-slate-100 pt-8">
               <h3 className="text-xl font-bold text-slate-900 mb-4">Rate this apartment</h3>
               <form onSubmit={handleReviewSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-                    Stars
-                  </label>
-                  <div className="flex items-center gap-2">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => setNewReview((prev) => ({ ...prev, rating: i + 1 }))}
-                        className="text-amber-400 text-2xl transition hover:scale-110 active:scale-95"
-                      >
-                        <i className={`${i < newReview.rating ? 'fa-solid' : 'fa-regular'} fa-star`}></i>
-                      </button>
-                    ))}
-                  </div>
+                <div className="flex items-center gap-2">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setNewReview((prev) => ({ ...prev, rating: i + 1 }))}
+                      className="text-amber-400 text-2xl transition hover:scale-110"
+                    >
+                      <i className={`${i < newReview.rating ? 'fa-solid' : 'fa-regular'} fa-star`}></i>
+                    </button>
+                  ))}
                 </div>
-
                 <button
                   type="submit"
                   disabled={submittingReview}
-                  className="rounded-xl bg-[#245999] px-6 py-3 font-semibold text-white transition hover:bg-[#1f4f86] disabled:opacity-50"
+                  className="rounded-xl bg-primary px-6 py-3 font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
                 >
                   {submittingReview ? 'Submitting...' : 'Submit Review'}
                 </button>
@@ -670,10 +628,7 @@ export const ApartmentDetails = () => {
             </button>
 
             <h3 className="text-2xl font-black text-slate-900">Book apartment</h3>
-            <p className="mt-2 text-sm text-slate-500">
-              Request the number of occupants you need for this apartment.
-            </p>
-
+            
             <form onSubmit={handleBooking} className="mt-6 space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
@@ -684,11 +639,10 @@ export const ApartmentDetails = () => {
                     type="date"
                     value={bookingForm.checkInDate}
                     onChange={(event) => setBookingForm((current) => ({ ...current, checkInDate: event.target.value }))}
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#245999]/20"
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
                     required
                   />
                 </div>
-
                 <div>
                   <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">
                     Check-out date
@@ -697,7 +651,7 @@ export const ApartmentDetails = () => {
                     type="date"
                     value={bookingForm.checkOutDate}
                     onChange={(event) => setBookingForm((current) => ({ ...current, checkOutDate: event.target.value }))}
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#245999]/20"
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
                     required
                   />
                 </div>
@@ -713,12 +667,9 @@ export const ApartmentDetails = () => {
                   max={capacity > 0 ? availableSpots || capacity : undefined}
                   value={bookingForm.requestedOccupants}
                   onChange={(event) => setBookingForm((current) => ({ ...current, requestedOccupants: event.target.value }))}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#245999]/20"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
                   required
                 />
-                <p className="mt-2 text-xs text-slate-400">
-                  {capacity > 0 ? `Available spots: ${availableSpots}` : 'Capacity not set yet.'}
-                </p>
               </div>
 
               <div>
@@ -729,7 +680,7 @@ export const ApartmentDetails = () => {
                   placeholder="Hi, I would like to book this apartment..."
                   value={bookingForm.message}
                   onChange={(event) => setBookingForm((current) => ({ ...current, message: event.target.value }))}
-                  className="min-h-[120px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#245999]/20"
+                  className="min-h-[120px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
                   rows="4"
                 />
               </div>
@@ -737,9 +688,9 @@ export const ApartmentDetails = () => {
               <button
                 type="submit"
                 disabled={bookingLoading}
-                className="w-full rounded-2xl bg-[#245999] py-4 font-black text-white transition hover:bg-[#1f4f86] disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full rounded-2xl bg-primary py-4 font-black text-white transition hover:opacity-90 disabled:opacity-60"
               >
-                {bookingLoading ? 'Sending booking request...' : 'Confirm rent request'}
+                {bookingLoading ? 'Sending...' : 'Confirm Booking'}
               </button>
             </form>
           </div>
@@ -747,7 +698,7 @@ export const ApartmentDetails = () => {
       )}
 
       {isGalleryModalOpen && images.length > 0 && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 px-4 py-6 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/90 px-4 py-6 backdrop-blur-sm">
           <div className="relative w-full max-w-5xl overflow-hidden rounded-[32px] bg-white shadow-2xl">
             <button
               type="button"
@@ -761,22 +712,21 @@ export const ApartmentDetails = () => {
               <img
                 src={currentImage}
                 alt={`Gallery ${selectedImageIndex + 1}`}
-                className="max-h-[75vh] w-full object-contain"
+                className="max-h-[85vh] w-full object-contain"
               />
-
               {images.length > 1 && (
                 <>
                   <button
                     type="button"
                     onClick={goToPreviousImage}
-                    className="absolute left-4 rounded-full bg-white/90 p-4 text-slate-900 shadow-lg transition hover:bg-white"
+                    className="absolute left-4 rounded-full bg-white/20 p-4 text-white hover:bg-white/40"
                   >
                     <i className="fas fa-chevron-left"></i>
                   </button>
                   <button
                     type="button"
                     onClick={goToNextImage}
-                    className="absolute right-4 rounded-full bg-white/90 p-4 text-slate-900 shadow-lg transition hover:bg-white"
+                    className="absolute right-4 rounded-full bg-white/20 p-4 text-white hover:bg-white/40"
                   >
                     <i className="fas fa-chevron-right"></i>
                   </button>
@@ -791,7 +741,7 @@ export const ApartmentDetails = () => {
 };
 
 const InfoTile = ({ label, value }) => (
-  <div className="rounded-2xl bg-white px-4 py-3 shadow-sm">
+  <div className="rounded-2xl bg-white px-4 py-3 shadow-sm border border-slate-100">
     <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</p>
     <p className="mt-1 text-sm font-semibold text-slate-900 break-words">{value}</p>
   </div>
