@@ -24,12 +24,6 @@ export const Universities = () => {
   return (
     <div className="w-full min-h-screen bg-[#f6f7fb]">
       <Navbar />
-      <div className="pt-8 pb-4">
-        <div className="max-w-7xl mx-auto px-4">
-          <h1 className="text-4xl font-black text-slate-900">Universities in Assiut</h1>
-          <p className="text-slate-500 mt-2">Find the best housing options near your academic institution.</p>
-        </div>
-      </div>
 
       {loading ? (
         <div className="py-20 text-center">

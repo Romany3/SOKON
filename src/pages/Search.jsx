@@ -210,26 +210,6 @@ export const Search = () => {
   <div>
 
   <label className="block mb-2 font-medium">
-  City
-  </label>
-
-  <input
-  value="Asyut"
-  disabled
-  className="
-  w-full
-  p-4
-  bg-gray-100
-  border
-  rounded-xl"
-  />
-
-  </div>
-
-
-  <div>
-
-  <label className="block mb-2 font-medium">
   District
   </label>
 
@@ -270,48 +250,6 @@ export const Search = () => {
 
   <option value="الجمهورية">
   الجمهورية
-  </option>
-
-  </select>
-
-  </div>
-
-
-  <div>
-
-  <label className="block mb-2 font-medium">
-  Apartment Type
-  </label>
-
-  <select
-  value={filters.apartmentType}
-  onChange={(e)=>
-  setFilters({
-  ...filters,
-  apartmentType:e.target.value
-  })
-  }
-  className="
-  w-full
-  p-4
-  border
-  rounded-xl"
-  >
-
-  <option value="">
-  Any
-  </option>
-
-  <option value="apartment">
-  Apartment
-  </option>
-
-  <option value="studio">
-  Studio
-  </option>
-
-  <option value="room">
-  Room
   </option>
 
   </select>

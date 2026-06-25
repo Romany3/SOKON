@@ -99,7 +99,7 @@ export const UniversitySection = ({ allApartments }) => {
             <button
               key={uni.id}
               onClick={() => setSelectedUni(uni)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              className={`px-9 py-3 rounded-xl text-xs font-bold transition-all ${
                 selectedUni.id === uni.id
                   ? 'bg-white text-[#245999] shadow-sm'
                   : 'text-slate-500 hover:text-slate-700'
@@ -114,7 +114,7 @@ export const UniversitySection = ({ allApartments }) => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-12">
         {/* Map & Uni Info */}
         <div className="lg:col-span-4 space-y-6">
-          <div className="bg-white rounded-[32px] border border-slate-200 overflow-hidden shadow-sm h-full flex flex-col">
+          <div className="bg-white rounded-[32px] border border-slate-200 overflow-hidden shadow-sm flex flex-col">
             <div className="h-48 w-full relative">
               <iframe
                 title="University Location"
