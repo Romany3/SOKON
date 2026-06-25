@@ -169,16 +169,6 @@ export const StudentHome = () => {
                 />
               </div>
               <div>
-                <label className="block mb-1 text-xs font-bold text-slate-500 uppercase ml-2">Beds</label>
-                <input
-                  type="number"
-                  placeholder="e.g. 2"
-                  value={filters.beds}
-                  onChange={(event) => setFilters((current) => ({ ...current, beds: event.target.value }))}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/20"
-                />
-              </div>
-              <div>
                 <label className="block mb-1 text-xs font-bold text-slate-500 uppercase ml-2">Rooms</label>
                 <input
                   type="number"
