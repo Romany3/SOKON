@@ -99,33 +99,58 @@ export const mapBooking = (booking) => {
 const normalizeBookingList = (payload) => asArray(payload).map(mapBooking).filter(Boolean);
 
 const normalizeCreatePayload = async (data = {}) => {
+  // Fetch latest apartment info to ensure we have correct owner and price
   const apartmentResponse = await apartmentsAPI.getApartment(data.apartmentId);
   const apartment = apartmentResponse.data;
-  const peopleCount = Number(data.people_count || data.requestedOccupants || data.occupants || 1);
+  
+  const peopleCount = Number(data.people_count || data.requestedOccupants || 1);
   const startDate = data.startDate || data.checkInDate || '';
   const endDate = data.endDate || data.checkOutDate || '';
+  
+  const currentUser = getStoredUser();
 
+  // Construct payload exactly as required by production backend
   return {
     apartmentId: data.apartmentId,
-    apartmentName: apartment?.name || apartment?.title || data.apartmentName || '',
-    apartmentAddress: apartment?.address || apartment?.locationAddress || apartment?.location || data.apartmentAddress || '',
-    apartmentImage: apartment?.images?.[0] || data.apartmentImage || null,
-    ownerId: apartment?.ownerId || apartment?.owner?._id || apartment?.owner?.id || data.ownerId || '',
-    ownerName: apartment?.ownerName || apartment?.owner?.name || apartment?.owner?.fullName || data.ownerName || '',
+    apartmentName: apartment?.title || apartment?.name || '',
+    apartmentAddress: apartment?.address || '',
+    apartmentImage: apartment?.images?.[0] || null,
+    ownerId: apartment?.owner?._id || apartment?.ownerId || '',
+    ownerName: apartment?.ownerName || apartment?.owner?.fullName || '',
+    clientId: currentUser?._id || currentUser?.id || '', // Include clientId for consistency
     startDate: startDate ? new Date(startDate).toISOString() : '',
     endDate: endDate ? new Date(endDate).toISOString() : '',
-    totalPrice: data.totalPrice !== undefined && data.totalPrice !== null
-      ? Number(data.totalPrice)
-      : Number(apartment?.price || 0) * Math.max(peopleCount, 1),
+    totalPrice: Number(apartment?.price || 0), // Backend usually expects base price or calculated total
     people_count: peopleCount,
-    status: data.status || 'pending',
-    message: data.message || '',
+    status: 'pending',
+    message: data.message || 'I would like to book this apartment.',
   };
 };
 
 export const bookingsAPI = {
   createBooking: async (data) => {
     const payload = await normalizeCreatePayload(data);
+    
+    // Perform a check before posting to see if active booking exists (pre-emptive fix for 409)
+    try {
+      const activeCheck = await apiClient.get('/bookings', { 
+        params: { 
+          clientId: payload.clientId, 
+          apartmentId: payload.apartmentId,
+          status: 'pending' 
+        } 
+      });
+      const existing = asArray(activeCheck.data);
+      if (existing.length > 0) {
+        const error = new Error('You already have a pending booking for this apartment.');
+        error.response = { status: 409, data: { message: error.message } };
+        throw error;
+      }
+    } catch (err) {
+      if (err.response?.status === 409) throw err;
+      // Ignore other check errors and proceed to let the main POST handle it
+    }
+
     const response = await apiClient.post('/bookings', payload);
     emitStoreChange();
     return { data: mapBooking(response.data?.booking || response.data?.data?.booking || response.data) };
