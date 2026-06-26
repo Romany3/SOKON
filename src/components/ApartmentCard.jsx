@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { APARTMENT_PLACEHOLDER } from '../utils/placeholders';
 
-export const ApartmentCard = ({ apartment }) => {
+export const ApartmentCard = ({ apartment, disableLink = false }) => {
   const displayName = apartment.title || apartment.name || 'Untitled';
   const displayLocation = apartment.city && apartment.district
     ? `${apartment.district}, ${apartment.city}`
@@ -18,11 +18,8 @@ export const ApartmentCard = ({ apartment }) => {
     ? Math.min((occupiedCount / capacity) * 100, 100)
     : 0;
 
-  return (
-    <Link
-      to={`/apartment/${apartment._id}`}
-      className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
-    >
+  const CardContent = () => (
+    <>
       <div className="relative h-52 overflow-hidden bg-slate-200">
         <img
           src={displayImage}
@@ -88,6 +85,25 @@ export const ApartmentCard = ({ apartment }) => {
           </div>
         )}
       </div>
+    </>
+  );
+
+  const cardClasses = "overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm transition " + (disableLink ? "" : "hover:-translate-y-1 hover:shadow-xl");
+
+  if (disableLink) {
+    return (
+      <div className={cardClasses}>
+        <CardContent />
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      to={`/apartment/${apartment._id}`}
+      className={cardClasses}
+    >
+      <CardContent />
     </Link>
   );
 };

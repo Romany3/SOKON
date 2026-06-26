@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { authAPI, mapUser, getStoredAccessToken, getStoredUser, setStoredUser, clearStoredSession } from '../services/api';
 import { isSessionExpired } from '../services/apiClient';
 import { beginGoogleOAuth, clearGoogleRoleHint, syncSupabaseSessionToBackend } from '../services/supabaseAuthService';
@@ -11,15 +11,15 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  const applyUser = (nextUser) => {
+  const applyUser = useCallback((nextUser) => {
     const mapped = nextUser ? mapUser(nextUser) : null;
     setUserState(mapped);
     setIsAuthenticated(Boolean(mapped));
     setStoredUser(mapped);
     return mapped;
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       if (isSupabaseConfigured && supabase) {
         await supabase.auth.signOut();
@@ -32,39 +32,39 @@ export const AuthProvider = ({ children }) => {
       applyUser(null);
       clearStoredSession();
     }
-  };
+  }, [applyUser]);
 
-  async function fetchUser() {
+  const fetchUser = useCallback(async () => {
+    const accessToken = getStoredAccessToken();
+    if (!accessToken) {
+      applyUser(null);
+      setLoading(false);
+      return null;
+    }
+
+    if (isSessionExpired()) {
+      await logout();
+      setLoading(false);
+      return null;
+    }
+
+    setLoading(true);
     try {
-      const accessToken = getStoredAccessToken();
-      if (!accessToken) {
-        applyUser(null);
-        setLoading(false);
-        return null;
-      }
-
-      // Check if session is older than 30 days
-      if (isSessionExpired()) {
-        console.warn('Session expired after 30 days. Logging out.');
-        await logout();
-        return null;
-      }
-
       const response = await authAPI.me();
       const loadedUser = response.data?.user || null;
       if (loadedUser) {
-        const mapped = applyUser(loadedUser);
-        return mapped;
+        return applyUser(loadedUser);
       }
     } catch (error) {
       console.error('Error fetching user profile:', error);
-      applyUser(null);
-      return null;
+      if (error?.response?.status === 401 || error?.response?.status === 403) {
+        applyUser(null);
+      }
     } finally {
       setLoading(false);
     }
     return null;
-  }
+  }, [applyUser, logout]);
 
   useEffect(() => {
     let subscription;
@@ -73,10 +73,7 @@ export const AuthProvider = ({ children }) => {
     let sessionCheckId;
 
     const refreshBackendSession = async () => {
-      if (!isSupabaseConfigured || !supabase || cancelled) {
-        return;
-      }
-
+      if (!isSupabaseConfigured || !supabase || cancelled) return;
       try {
         const { data } = await supabase.auth.getSession();
         const session = data?.session || null;
@@ -90,10 +87,8 @@ export const AuthProvider = ({ children }) => {
     };
 
     const restoreUser = async () => {
-      // Check for 30-day expiration immediately on boot
       if (isSessionExpired()) {
         await logout();
-        setLoading(false);
         return;
       }
 
@@ -107,38 +102,21 @@ export const AuthProvider = ({ children }) => {
           const { data } = await supabase.auth.getSession();
           const session = data?.session || null;
           if (session) {
-            try {
-              await syncSupabaseSessionToBackend(session, { force: true });
-            } catch (syncErr) {
-              console.error('Initial sync failed:', syncErr);
-            }
+            await syncSupabaseSessionToBackend(session, { force: true }).catch(console.error);
           }
 
-          keepAliveId = window.setInterval(() => {
-            refreshBackendSession();
-          }, 15 * 60 * 1000);
+          keepAliveId = window.setInterval(refreshBackendSession, 15 * 60 * 1000);
 
           const { data: stateData } = supabase.auth.onAuthStateChange(async (event, nextSession) => {
-            if (cancelled) {
-              return;
-            }
-
+            if (cancelled) return;
             if (event === 'SIGNED_OUT') {
               clearGoogleRoleHint();
               applyUser(null);
-              return;
-            }
-
-            if (nextSession && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
-              try {
-                await syncSupabaseSessionToBackend(nextSession, { force: true });
-                await fetchUser();
-              } catch (syncError) {
-                console.error('Error syncing Supabase session:', syncError);
-              }
+            } else if (nextSession && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
+              await syncSupabaseSessionToBackend(nextSession, { force: true }).catch(console.error);
+              await fetchUser();
             }
           });
-
           subscription = stateData.subscription;
         } catch (error) {
           console.error('Error restoring Supabase session:', error);
@@ -149,34 +127,24 @@ export const AuthProvider = ({ children }) => {
     };
 
     restoreUser();
-
-    // Periodically check if session expires while the tab is open
     sessionCheckId = window.setInterval(() => {
-      if (isSessionExpired()) {
-        logout();
-      }
-    }, 60 * 60 * 1000); // Check every hour
+      if (isSessionExpired()) logout();
+    }, 3600000);
 
     return () => {
       cancelled = true;
       subscription?.unsubscribe();
-      if (keepAliveId) {
-        window.clearInterval(keepAliveId);
-      }
-      if (sessionCheckId) {
-        window.clearInterval(sessionCheckId);
-      }
+      if (keepAliveId) window.clearInterval(keepAliveId);
+      if (sessionCheckId) window.clearInterval(sessionCheckId);
     };
-  }, []);
+  }, [fetchUser, logout, applyUser]);
 
   const login = async (email, password) => {
     setLoading(true);
     try {
       const response = await authAPI.login({ email, password });
       const loggedInUser = response.data?.user || (await fetchUser());
-      if (loggedInUser) {
-        applyUser(loggedInUser);
-      }
+      if (loggedInUser) applyUser(loggedInUser);
       return response.data;
     } finally {
       setLoading(false);
@@ -186,14 +154,9 @@ export const AuthProvider = ({ children }) => {
   const register = async (data, role) => {
     setLoading(true);
     try {
-      const response = await authAPI.register({
-        ...data,
-        role: role || data.role,
-      });
+      const response = await authAPI.register({ ...data, role: role || data.role });
       const registeredUser = response.data?.user || null;
-      if (registeredUser) {
-        applyUser(registeredUser);
-      }
+      if (registeredUser) applyUser(registeredUser);
       return response.data;
     } finally {
       setLoading(false);
@@ -213,17 +176,11 @@ export const AuthProvider = ({ children }) => {
     fetchUser,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within AuthProvider');
   return context;
 };
