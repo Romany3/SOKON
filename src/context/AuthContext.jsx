@@ -34,7 +34,7 @@ export const AuthProvider = ({ children }) => {
     }
   }, [applyUser]);
 
-  const fetchUser = useCallback(async () => {
+  const fetchUser = useCallback(async (isBackground = false) => {
     const accessToken = getStoredAccessToken();
     if (!accessToken) {
       applyUser(null);
@@ -48,7 +48,9 @@ export const AuthProvider = ({ children }) => {
       return null;
     }
 
-    setLoading(true);
+    // Only set global loading for initial or explicit loads, not background syncs
+    if (!isBackground) setLoading(true);
+    
     try {
       const response = await authAPI.me();
       const loadedUser = response.data?.user || null;
@@ -61,7 +63,7 @@ export const AuthProvider = ({ children }) => {
         applyUser(null);
       }
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
     return null;
   }, [applyUser, logout]);
@@ -79,7 +81,8 @@ export const AuthProvider = ({ children }) => {
         const session = data?.session || null;
         if (session) {
           await syncSupabaseSessionToBackend(session, { force: true });
-          await fetchUser();
+          // Background fetch to avoid splash screen interrupt
+          await fetchUser(true);
         }
       } catch (error) {
         console.error('Error refreshing backend session:', error);
@@ -114,7 +117,7 @@ export const AuthProvider = ({ children }) => {
               applyUser(null);
             } else if (nextSession && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
               await syncSupabaseSessionToBackend(nextSession, { force: true }).catch(console.error);
-              await fetchUser();
+              await fetchUser(true);
             }
           });
           subscription = stateData.subscription;

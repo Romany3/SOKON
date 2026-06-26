@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { notificationsAPI } from '../services/api';
 import { AVATAR_SM_PLACEHOLDER } from '../utils/placeholders';
 
 export const AdminNavbar = () => {
@@ -9,6 +10,23 @@ export const AdminNavbar = () => {
   const location = useLocation();
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      if (!user?._id) return;
+      try {
+        const res = await notificationsAPI.getNotifications(user._id);
+        const list = res.data?.notifications || [];
+        setUnreadCount(list.filter(n => !n.isRead).length);
+      } catch (err) {
+        console.error('Error fetching admin notifications:', err);
+      }
+    };
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000); // Check every 30s
+    return () => clearInterval(interval);
+  }, [user?._id]);
 
   const handleLogout = async () => {
     await logout();
@@ -31,20 +49,20 @@ export const AdminNavbar = () => {
           <div className="flex justify-between items-center h-20">
             {/* Logo & Hamburger */}
             <div className="flex items-center gap-4 lg:gap-8">
-              {/* Hamburger Button (Mobile Only) */}
+              {/* Hamburger Button (Tablet/Mobile) */}
               <button
                 onClick={() => setIsSidebarOpen(true)}
-                className="xl:hidden h-10 w-10 flex items-center justify-center rounded-xl bg-slate-50 text-slate-600 hover:bg-slate-100 transition"
+                className="xl:hidden h-11 w-11 flex items-center justify-center rounded-xl bg-slate-50 text-slate-600 hover:bg-slate-100 transition"
               >
-                <i className="fas fa-bars"></i>
+                <i className="fas fa-bars text-lg"></i>
               </button>
 
               <Link to="/admin/dashboard" className="flex items-center gap-2">
                 <span className="text-2xl font-black text-primary tracking-tighter">SOKON</span>
-                <span className="bg-primary/10 text-primary text-[10px] font-black px-2 py-0.5 rounded-md tracking-widest uppercase">Admin</span>
+                <span className="bg-primary/10 text-primary text-[10px] font-black px-2 py-0.5 rounded-md tracking-widest uppercase hidden sm:inline-block">Admin</span>
               </Link>
 
-              {/* Desktop Nav (Hidden on Mobile/Tablet) */}
+              {/* Desktop Nav */}
               <div className="hidden xl:flex items-center gap-1">
                 {navLinks.map((link) => (
                   <Link
@@ -64,8 +82,21 @@ export const AdminNavbar = () => {
             </div>
 
             {/* Right Section */}
-            <div className="flex items-center">
-              <div className="h-8 w-[1px] bg-slate-100 mx-4 hidden sm:block"></div>
+            <div className="flex items-center gap-2 sm:gap-4">
+              {/* Notifications Icon (Re-added per requirement) */}
+              <Link 
+                to="/admin/notifications" 
+                className="relative h-11 w-11 flex items-center justify-center rounded-xl bg-slate-50 text-slate-500 hover:bg-slate-100 transition"
+              >
+                <i className="fas fa-bell"></i>
+                {unreadCount > 0 && (
+                  <span className="absolute top-2.5 right-2.5 h-4 w-4 bg-red-500 border-2 border-white rounded-full flex items-center justify-center text-[9px] text-white font-black">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </Link>
+
+              <div className="h-8 w-[1px] bg-slate-100 mx-1 hidden sm:block"></div>
 
               {/* Profile Dropdown */}
               <div className="relative">
@@ -82,7 +113,7 @@ export const AdminNavbar = () => {
                   </div>
                   <div className="hidden lg:block text-left pr-1">
                     <p className="text-sm font-black text-slate-900 leading-none">{user?.fullName || 'Admin'}</p>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase mt-1 tracking-wider">Super Administrator</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase mt-1 tracking-wider">Administrator</p>
                   </div>
                   <i className={`fas fa-chevron-down text-[10px] text-slate-300 transition-transform ${profileMenuOpen ? 'rotate-180' : ''}`}></i>
                 </button>
@@ -90,8 +121,8 @@ export const AdminNavbar = () => {
                 {profileMenuOpen && (
                   <div className="absolute right-0 mt-3 w-64 bg-white rounded-[24px] shadow-2xl border border-slate-100 py-3 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                     <div className="px-5 py-4 border-b border-slate-50 mb-2">
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Authenticated as</p>
-                      <p className="text-sm font-black text-slate-900 truncate">{user?.email}</p>
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 text-left">Authenticated as</p>
+                      <p className="text-sm font-black text-slate-900 truncate text-left">{user?.email}</p>
                     </div>
                     
                     <Link
