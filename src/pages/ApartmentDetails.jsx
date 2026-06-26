@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 import { Navbar } from '../components/Navbar';
 import { apartmentsAPI, bookingsAPI, chatAPI, reviewsAPI, authAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -49,7 +49,7 @@ export const ApartmentDetails = () => {
     if (isNaN(start.getTime()) || isNaN(end.getTime()) || end <= start) return null;
     const diffDays = Math.ceil(Math.abs(end - start) / (1000 * 60 * 60 * 24));
     
-    // Formula: (Number of booking days) × (Apartment price)
+    // Total price calculation: (Number of booking days) × (Apartment price)
     const totalPrice = diffDays * (apartment.price || 0); 
     return { 
       days: diffDays, 
@@ -189,6 +189,10 @@ export const ApartmentDetails = () => {
   const availableSpots = Math.max(Number(apartment?.available_people ?? apartment?.max_people ?? 0) - Number(apartment?.occupiedCount || 0), 0);
   const currentImage = images[selectedImageIndex] || images[0] || '';
 
+  // Check if phone number exists for students
+  const hasPhoneNumber = user?.phoneNumber || user?.phone;
+  const isStudent = user?.role === 'student' || user?.role === 'client';
+
   if (loading) return (
     <div className="min-h-screen bg-white flex items-center justify-center">
       <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
@@ -247,16 +251,35 @@ export const ApartmentDetails = () => {
                 <h2 className="text-xl font-black text-slate-900 mb-4">Description</h2>
                 <p className="text-slate-600 leading-relaxed">{apartment.description_en || apartment.description}</p>
               </div>
-              <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100">
-                 <h3 className="font-black text-slate-900 mb-4">Unit Status</h3>
-                 <div className="flex justify-between items-center mb-2">
-                   <span className="text-sm text-slate-500 font-bold">Occupancy</span>
-                   <span className="text-sm font-black text-slate-900">{apartment.occupiedCount || 0} / {apartment.max_people}</span>
-                 </div>
-                 <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
-                    <div className="h-full bg-primary" style={{ width: `${(apartment.occupiedCount / apartment.max_people) * 100}%` }}></div>
-                 </div>
-                 <p className="mt-4 text-xs text-slate-400 font-medium italic">Available Spots: {apartment.available_people || availableSpots}</p>
+              <div className="space-y-6">
+                <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100">
+                   <h3 className="font-black text-slate-900 mb-4 text-lg">Unit Status</h3>
+                   <div className="flex justify-between items-center mb-2">
+                     <span className="text-sm text-slate-500 font-bold">Occupancy</span>
+                     <span className="text-sm font-black text-slate-900">{apartment.occupiedCount || 0} / {apartment.max_people}</span>
+                   </div>
+                   <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
+                      <div className="h-full bg-primary" style={{ width: `${(apartment.occupiedCount / apartment.max_people) * 100}%` }}></div>
+                   </div>
+                   <p className="mt-4 text-xs text-slate-400 font-medium italic">Available Spots: {apartment.available_people || availableSpots}</p>
+                </div>
+                
+                {/* Location Information Section */}
+                <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100">
+                   <h3 className="font-black text-slate-900 mb-4 text-lg flex items-center gap-2">
+                     <i className="fas fa-map-location-dot text-primary"></i> Location Information
+                   </h3>
+                   <div className="space-y-3">
+                      <div>
+                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">📍 Address</p>
+                        <p className="text-sm font-bold text-slate-900 mt-1">{apartment.address || 'Not specified'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">District & City</p>
+                        <p className="text-sm font-bold text-slate-900 mt-1">{apartment.district}, {apartment.city}</p>
+                      </div>
+                   </div>
+                </div>
               </div>
             </div>
 
@@ -277,13 +300,31 @@ export const ApartmentDetails = () => {
               </div>
             )}
 
-            <button
-              onClick={handleOpenBookingModal}
-              disabled={hasRented || bookingLoading}
-              className="w-full py-5 rounded-[24px] bg-primary text-white text-xl font-black shadow-lg shadow-primary/20 hover:opacity-95 transition disabled:bg-slate-200 disabled:text-slate-400"
-            >
-              {hasRented ? 'Already Requested' : bookingLoading ? 'Checking...' : 'Rent Now'}
-            </button>
+            {isStudent && !hasPhoneNumber ? (
+              <div className="bg-amber-50 border border-amber-200 rounded-[24px] p-6 text-center">
+                <p className="text-amber-800 font-bold mb-4">Please add your phone number before renting an apartment</p>
+                <Link
+                  to="/profile"
+                  className="inline-block w-full py-4 rounded-[20px] bg-amber-600 text-white font-black shadow-lg shadow-amber-600/20 hover:bg-amber-700 transition"
+                >
+                  Complete Profile First
+                </Link>
+              </div>
+            ) : (isStudent || !user) && (
+              <button
+                onClick={handleOpenBookingModal}
+                disabled={availableSpots === 0 || hasRented}
+                className="w-full py-5 rounded-[24px] bg-primary text-white text-xl font-black shadow-lg shadow-primary/20 hover:opacity-95 transition disabled:bg-slate-200 disabled:text-slate-400"
+              >
+                {hasRented ? 'Already Requested' : availableSpots === 0 ? 'Apartment Full' : 'Rent Now'}
+              </button>
+            )}
+            
+            {user?.role === 'owner' && user?._id === apartment.owner?._id && (
+              <button onClick={() => navigate(`/edit-apartment/${id}`)} className="w-full py-5 rounded-[24px] bg-slate-900 text-white text-xl font-black shadow-lg shadow-slate-900/20 hover:bg-slate-800 transition">
+                Edit apartment
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -302,27 +343,17 @@ export const ApartmentDetails = () => {
                 <Input label="Start Date" type="date" value={bookingForm.startDate} onChange={v => setBookingForm({...bookingForm, startDate: v})} />
                 <Input label="End Date" type="date" value={bookingForm.endDate} onChange={v => setBookingForm({...bookingForm, endDate: v})} />
               </div>
-              <Input label="Number of People" type="number" min="1" max={apartment?.available_people || apartment?.max_people} value={bookingForm.requestedOccupants} onChange={v => setBookingForm({...bookingForm, requestedOccupants: v})} />
+              <Input label="Number of People" type="number" min="1" max={availableSpots} value={bookingForm.requestedOccupants} onChange={v => setBookingForm({...bookingForm, requestedOccupants: v})} />
 
               {bookingSummary && (
-                <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100 space-y-4">
-                   <h4 className="font-black text-slate-900 uppercase tracking-widest text-[10px] border-b border-slate-200 pb-2">Booking Summary</h4>
-                   <div className="space-y-2">
-                     <SummaryRow label="Apartment" value={bookingSummary.apartmentName} />
-                     <SummaryRow label="Duration" value={`${bookingSummary.days} Days`} />
-                     <SummaryRow label="Occupants" value={`${bookingSummary.people} Person`} />
-                   </div>
+                <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100 space-y-3">
+                   <div className="flex justify-between text-sm font-bold"><span className="text-slate-400">Stay Duration</span><span className="text-slate-900">{bookingSummary.days} Days</span></div>
                    <div className="flex justify-between items-center pt-3 border-t border-slate-200"><span className="text-slate-900 font-black">Total Price</span><span className="text-2xl font-black text-primary">${bookingSummary.totalPrice}</span></div>
                 </div>
               )}
 
               <button type="submit" disabled={bookingLoading} className="w-full py-4 rounded-2xl bg-primary text-white font-black hover:opacity-95 transition flex items-center justify-center gap-3">
-                {bookingLoading ? (
-                  <>
-                    <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                    Creating booking...
-                  </>
-                ) : 'Confirm Booking'}
+                {bookingLoading ? <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : 'Confirm Booking'}
               </button>
             </form>
           </div>
@@ -342,13 +373,6 @@ const Input = ({ label, type, value, onChange, ...rest }) => (
   <div className="space-y-2">
     <label className="text-[10px] font-black uppercase text-slate-400 ml-1">{label}</label>
     <input type={type} value={value} onChange={e => onChange(e.target.value)} {...rest} className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-primary/5 transition font-bold" required />
-  </div>
-);
-
-const SummaryRow = ({ label, value }) => (
-  <div className="flex justify-between text-sm font-bold">
-    <span className="text-slate-400">{label}</span>
-    <span className="text-slate-900">{value}</span>
   </div>
 );
 

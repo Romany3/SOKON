@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Navbar } from '../components/Navbar';
 import { apartmentsAPI } from '../services/api';
 import { LocationPickerModal } from '../components/LocationPickerModal';
+import { getApiErrorMessage } from '../services/apiClient';
 
 export const AddApartment = () => {
   const navigate = useNavigate();
@@ -25,14 +26,13 @@ export const AddApartment = () => {
   });
   
   const [errors, setErrors] = useState({});
-  const [loading, setLoading] = useState(false);
+  const [submitLoading, setSubmitLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [isLocationPickerOpen, setIsLocationPickerOpen] = useState(false);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
     setFormData((current) => ({ ...current, [name]: value }));
-    // Clear error for this field
     if (errors[name]) {
       setErrors(prev => {
         const newErrors = { ...prev };
@@ -94,7 +94,7 @@ export const AddApartment = () => {
     if (!formData.district) newErrors.district = 'District is required';
     if (!formData.address.trim()) newErrors.address = 'Address is required';
     if (!formData.beds) newErrors.beds = 'Bedrooms count is required';
-    if (!formData.rooms) newErrors.rooms = 'Living rooms/Total rooms count is required';
+    if (!formData.rooms) newErrors.rooms = 'Living rooms count is required';
     if (!formData.bathrooms) newErrors.bathrooms = 'Bathrooms count is required';
     if (!formData.floor && formData.floor !== 0) newErrors.floor = 'Floor number is required';
     if (!formData.latitude || !formData.longitude) newErrors.location = 'Please pick a location on the map';
@@ -112,7 +112,7 @@ export const AddApartment = () => {
       return;
     }
 
-    setLoading(true);
+    setSubmitLoading(true);
 
     try {
       const form = new FormData();
@@ -146,9 +146,9 @@ export const AddApartment = () => {
         navigate('/my-apartment');
       }, 1800);
     } catch (requestError) {
-      setErrors({ submit: requestError?.message || 'Failed to add apartment. Please try again.' });
+      setErrors({ submit: getApiErrorMessage(requestError, 'Failed to add apartment. Please try again.') });
     } finally {
-      setLoading(false);
+      setSubmitLoading(false);
     }
   };
 
@@ -193,7 +193,7 @@ export const AddApartment = () => {
                   value={formData.title}
                   onChange={handleChange}
                   className={`w-full px-5 py-4 border ${errors.title ? 'border-red-500 bg-red-50' : 'border-slate-200'} rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition`}
-                  placeholder="e.g., Modern 3-Bedroom Apartment near Faculty of Medicine"
+                  placeholder="e.g., Modern 3-Bedroom Apartment"
                 />
                 {errors.title && <p className="mt-1 text-sm text-red-500 font-medium ml-2">{errors.title}</p>}
               </div>
@@ -379,7 +379,7 @@ export const AddApartment = () => {
                 onChange={handleChange}
                 rows="5"
                 className={`w-full px-5 py-4 border ${errors.description_en ? 'border-red-500 bg-red-50' : 'border-slate-200'} rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition`}
-                placeholder="Describe your apartment features, nearby services, etc..."
+                placeholder="Describe your apartment features..."
               />
               {errors.description_en && <p className="mt-1 text-sm text-red-500 font-medium">{errors.description_en}</p>}
             </div>
@@ -418,7 +418,7 @@ export const AddApartment = () => {
                 {formData.images.length > 0 && (
                   <div className="grid grid-cols-3 gap-3 mt-6">
                     {formData.images.map((file, index) => {
-                      const url = file instanceof File ? URL.createObjectURL(file) : file;
+                      const url = typeof file === 'string' ? file : URL.createObjectURL(file);
                       return (
                         <div key={index} className="relative group aspect-square rounded-xl overflow-hidden shadow-sm">
                           <img src={url} alt="Preview" className="w-full h-full object-cover" />
@@ -483,13 +483,13 @@ export const AddApartment = () => {
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={submitLoading}
               className="flex-1 bg-primary text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/30 hover:opacity-90 transition disabled:opacity-50"
             >
-              {loading ? (
+              {submitLoading ? (
                 <span className="flex items-center justify-center gap-2">
-                   <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                   Publishing Apartment...
+                   <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                   Publishing Listing...
                 </span>
               ) : 'Publish Apartment'}
             </button>

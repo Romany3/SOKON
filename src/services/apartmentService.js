@@ -15,7 +15,19 @@ const pickArray = (value) => {
     return value.filter(Boolean);
   }
 
-  if (typeof value === 'string' && value.trim()) {
+  if (value && typeof value === 'string' && value.trim()) {
+    // Check if it looks like a JSON array string
+    if (value.trim().startsWith('[') && value.trim().endsWith(']')) {
+      try {
+        const parsed = JSON.parse(value);
+        if (Array.isArray(parsed)) return parsed.filter(Boolean);
+      } catch (e) {}
+    }
+    return [value];
+  }
+
+  // Handle single File or Blob objects
+  if (value instanceof File || value instanceof Blob) {
     return [value];
   }
 
