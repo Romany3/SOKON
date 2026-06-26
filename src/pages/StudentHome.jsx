@@ -239,7 +239,7 @@ export const StudentHome = () => {
               <button
                 key={location.name}
                 type="button"
-                onClick={() => navigate(`/search?district=${encodeURIComponent(location.name)}`)}
+                onClick={() => navigate(`/locations?location=${encodeURIComponent(location.name)}`)}
                 className="group rounded-[28px] border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
               >
                 <div className="flex items-center justify-between gap-4">
