@@ -83,21 +83,6 @@ export const AdminNavbar = () => {
 
             {/* Right Section */}
             <div className="flex items-center gap-2 sm:gap-4">
-              {/* Notifications Icon (Re-added per requirement) */}
-              <Link 
-                to="/admin/notifications" 
-                className="relative h-11 w-11 flex items-center justify-center rounded-xl bg-slate-50 text-slate-500 hover:bg-slate-100 transition"
-              >
-                <i className="fas fa-bell"></i>
-                {unreadCount > 0 && (
-                  <span className="absolute top-2.5 right-2.5 h-4 w-4 bg-red-500 border-2 border-white rounded-full flex items-center justify-center text-[9px] text-white font-black">
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </span>
-                )}
-              </Link>
-
-              <div className="h-8 w-[1px] bg-slate-100 mx-1 hidden sm:block"></div>
-
               {/* Profile Dropdown */}
               <div className="relative">
                 <button
