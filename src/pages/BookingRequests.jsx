@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Navbar } from '../components/Navbar';
 import { bookingsAPI } from '../services/api';
 import { useStoreVersion } from '../hooks/useStoreVersion';
-import { APARTMENT_PLACEHOLDER } from '../utils/placeholders';
+import { APARTMENT_PLACEHOLDER, AVATAR_SM_PLACEHOLDER } from '../utils/placeholders';
 
 const statusStyles = {
   pending: 'bg-amber-100 text-amber-700',
@@ -25,10 +25,10 @@ export const BookingRequests = () => {
       setLoading(true);
       try {
         const response = await bookingsAPI.getOwnerBookings();
-        const data = response.data;
+        const data = response.data?.bookings || response.data || [];
         // Sort newest first
-        const list = Array.isArray(data) ? data : (data?.bookings || []);
-        setBookings(list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+        const list = Array.isArray(data) ? data : [];
+        setBookings([...list].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
       } catch (error) {
         console.error('Error fetching booking requests:', error);
       } finally {
@@ -49,14 +49,19 @@ export const BookingRequests = () => {
     if (!window.confirm(`Are you sure you want to ${actionName} this booking?`)) return;
 
     try {
-      if (status === 'cancelled') {
+      if (status === 'accepted') {
+        await bookingsAPI.acceptBooking(id);
+      } else if (status === 'rejected') {
+        await bookingsAPI.rejectBooking(id);
+      } else if (status === 'cancelled') {
         await bookingsAPI.cancelBooking(id);
-      } else {
-        await bookingsAPI.updateBookingStatus({ bookingId: id, status });
       }
-      // Refresh list
+      
+      // Refresh list after update
       const response = await bookingsAPI.getOwnerBookings();
-      setBookings(response.data?.bookings || response.data || []);
+      const data = response.data?.bookings || response.data || [];
+      const list = Array.isArray(data) ? data : [];
+      setBookings([...list].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
     } catch (error) {
       alert(error?.response?.data?.message || 'Failed to update status');
     }
