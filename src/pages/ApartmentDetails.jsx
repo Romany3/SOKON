@@ -49,22 +49,34 @@ export const ApartmentDetails = () => {
   const isUserStudent = userRole === 'student' || userRole === 'client';
   const hasPhoneNumber = user?.phoneNumber || user?.phone;
 
-  // Calculate booking summary & Total Price dynamically
+  // Step 6: Automatically calculate Total Price based on Months AND Number of People
   const bookingSummary = useMemo(() => {
     if (!bookingForm.startDate || !bookingForm.endDate || !apartment) return null;
     const start = new Date(bookingForm.startDate);
     const end = new Date(bookingForm.endDate);
     if (isNaN(start.getTime()) || isNaN(end.getTime()) || end <= start) return null;
-    const diffDays = Math.ceil(Math.abs(end - start) / (1000 * 60 * 60 * 24));
     
-    const totalPrice = diffDays * (apartment.price || 0); 
+    const diffTime = Math.abs(end - start);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    // Calculate fractional months (assuming 30 days per month)
+    const numMonths = diffDays / 30;
+    
+    // Total price formula: (Number of months) × (Monthly price) × (Number of people)
+    const occupants = Number(bookingForm.requestedOccupants) || 1;
+    const pricePerMonth = Number(apartment.price) || 0;
+    const totalPrice = numMonths * pricePerMonth * occupants; 
+
     return { 
       days: diffDays, 
+      months: numMonths.toFixed(1),
+      unitPrice: pricePerMonth,
       totalPrice: totalPrice.toFixed(2),
+      totalNumeric: totalPrice,
       apartmentName: apartment.title || apartment.name,
       start: bookingForm.startDate,
       end: bookingForm.endDate,
-      people: bookingForm.requestedOccupants
+      people: occupants
     };
   }, [bookingForm.startDate, bookingForm.endDate, bookingForm.requestedOccupants, apartment]);
 
@@ -204,8 +216,8 @@ export const ApartmentDetails = () => {
         ownerName: apartment.ownerName || apartment.owner?.fullName,
         startDate: start.toISOString(),
         endDate: end.toISOString(),
-        totalPrice: bookingSummary?.totalPrice || 0,
-        people_count: bookingForm.requestedOccupants,
+        totalPrice: bookingSummary?.totalNumeric || 0,
+        people_count: Number(bookingForm.requestedOccupants),
         message: bookingForm.message
       });
 
@@ -230,6 +242,9 @@ export const ApartmentDetails = () => {
   const images = apartment?.images || [];
   const availableSpots = Math.max(Number(apartment?.available_people ?? apartment?.max_people ?? 0) - Number(apartment?.occupiedCount || 0), 0);
   const currentImage = images[selectedImageIndex] || images[0] || '';
+
+  // OWNER CHAT RESTRICTION: Fully hide if the current logged-in user is an owner
+  const canShowChatButton = !user || userRole !== 'owner';
 
   if (loading) return (
     <div className="min-h-screen bg-white flex items-center justify-center">
@@ -308,6 +323,7 @@ export const ApartmentDetails = () => {
                    <p className="mt-4 text-xs text-slate-400 font-medium italic">Available Spots: {apartment.available_people || availableSpots}</p>
                 </div>
                 
+                {/* Location Information Section */}
                 <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100 shadow-sm">
                    <h3 className="font-black text-slate-900 mb-4 text-lg flex items-center gap-2">
                      <i className="fas fa-map-location-dot text-primary"></i> Location Information
@@ -341,8 +357,7 @@ export const ApartmentDetails = () => {
                        <h4 className="text-lg font-black text-slate-900">{apartment.owner.fullName}</h4>
                     </div>
                  </div>
-                 {/* OWNER CHAT RESTRICTION: Hide button if viewer is owner */}
-                 {user?._id !== apartment.owner?._id && !isUserOwner && (
+                 {user?._id !== apartment.owner?._id && canShowChatButton && (
                    <button onClick={handleMessageOwner} className="bg-white px-6 py-3 rounded-2xl font-bold text-slate-700 shadow-sm hover:bg-slate-100 transition border border-slate-100 flex items-center gap-2">
                      <i className="far fa-comment-dots text-primary"></i>
                      Contact Owner
@@ -396,20 +411,25 @@ export const ApartmentDetails = () => {
                 <Input label="Start Date" type="date" value={bookingForm.startDate} onChange={v => setBookingForm({...bookingForm, startDate: v})} />
                 <Input label="End Date" type="date" value={bookingForm.endDate} onChange={v => setBookingForm({...bookingForm, endDate: v})} />
               </div>
-              <Input label="Number of People" type="number" min="1" max={availableSpots || capacity} value={bookingForm.requestedOccupants} onChange={v => setBookingForm({...bookingForm, requestedOccupants: v})} />
+              <Input label="Number of People" type="number" min="1" max={availableSpots || (apartment?.max_people)} value={bookingForm.requestedOccupants} onChange={v => setBookingForm({...bookingForm, requestedOccupants: v})} />
 
               {bookingSummary && (
                 <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100 space-y-3 shadow-inner">
                    <h4 className="font-black text-slate-900 uppercase tracking-widest text-[10px] border-b border-slate-200 pb-2">Booking Summary</h4>
-                   <SummaryRow label="Apartment" value={bookingSummary.apartmentName} />
-                   <SummaryRow label="Duration" value={`${bookingSummary.days} Days`} />
+                   <SummaryRow label="Stay Duration" value={`${bookingSummary.months} Months (${bookingSummary.days} Days)`} />
+                   <SummaryRow label="Price per Month" value={`$${bookingSummary.unitPrice}`} />
                    <SummaryRow label="Occupants" value={`${bookingSummary.people} Person`} />
-                   <div className="flex justify-between items-center pt-3 border-t border-slate-200"><span className="text-slate-900 font-black">Total Price</span><span className="text-2xl font-black text-primary">${bookingSummary.totalPrice}</span></div>
+                   <div className="flex justify-between items-center pt-3 border-t border-slate-200"><span className="text-slate-900 font-black">Total Price</span><span className="text-2xl font-black text-primary">{bookingSummary.totalPrice} EGY</span></div>
                 </div>
               )}
 
-              <button type="submit" disabled={bookingLoading} className="w-full py-4 rounded-2xl bg-primary text-white font-black hover:opacity-95 transition flex items-center justify-center gap-3">
-                {bookingLoading ? <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : 'Confirm Booking'}
+              <button type="submit" disabled={bookingLoading} className="w-full py-4 rounded-2xl bg-primary text-white font-black hover:opacity-95 transition flex items-center justify-center gap-3 shadow-xl shadow-primary/20">
+                {bookingLoading ? (
+                  <>
+                    <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    Creating booking...
+                  </>
+                ) : 'Confirm Booking'}
               </button>
             </form>
           </div>
