@@ -22,7 +22,7 @@ export const EditApartment = () => {
     latitude: '',
     longitude: '',
     maxPeople: 4,
-    images: [], // Combination of existing URLs and new File objects
+    images: [], // Mixture of URLs and File objects
     video: null,
   });
   
@@ -167,9 +167,9 @@ export const EditApartment = () => {
 
       formData.images.forEach((img) => {
         if (img instanceof File || img instanceof Blob) {
-          form.append('images', img); // New files
+          form.append('images', img);
         } else if (typeof img === 'string') {
-          form.append('existingImages', img); // Existing URLs
+          form.append('imageUrls', img); 
         }
       });
 

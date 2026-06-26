@@ -58,8 +58,14 @@ export const bookingsAPI = {
       });
       return response.data; // Expected { exists: boolean }
     } catch (error) {
-      console.error('Active check failed:', error);
-      return { exists: false };
+      console.warn('Active check failed, falling back to manual scan');
+      const res = await bookingsAPI.getStudentBookings(userId);
+      const list = res.data?.bookings || [];
+      const exists = list.some(b => 
+        String(b.apartmentId) === String(apartmentId) && 
+        ['pending', 'approved', 'accepted'].includes(b.status)
+      );
+      return { exists };
     }
   },
 
@@ -116,13 +122,6 @@ export const bookingsAPI = {
 
   getMyBookings: async (userId = getStoredUser()?.id || getStoredUser()?._id) =>
     bookingsAPI.getStudentBookings(userId),
-
-  // Requirement: POST /bookings/{bookingId}/status
-  updateBookingStatus: async ({ bookingId, status }) => {
-    const response = await apiClient.post(`/bookings/${bookingId}/status`, { status });
-    emitStoreChange();
-    return { data: mapBooking(response.data?.booking || response.data) };
-  },
 
   // Requirement: POST /rpc/update_booking_status_with_capacity
   updateBookingStatusWithCapacity: async ({ bookingId, status }) => {
