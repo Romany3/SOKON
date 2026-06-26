@@ -45,10 +45,13 @@ export const setStoredAccessToken = (token) => {
 
   if (token) {
     window.localStorage.setItem('accessToken', token);
+    // Set login timestamp when token is saved
+    window.localStorage.setItem('loginTimestamp', Date.now().toString());
     return;
   }
 
   window.localStorage.removeItem('accessToken');
+  window.localStorage.removeItem('loginTimestamp');
 };
 
 export const getStoredUser = () => {
@@ -81,10 +84,27 @@ export const clearStoredSession = () => {
   if (typeof window !== 'undefined') {
     window.localStorage.removeItem('accessToken');
     window.localStorage.removeItem('user');
+    window.localStorage.removeItem('loginTimestamp');
   }
 
   delete apiClient.defaults.headers.common.Authorization;
   emitStoreChange();
+};
+
+/**
+ * Checks if the session has expired (30 days limit)
+ * @returns {boolean} True if expired
+ */
+export const isSessionExpired = () => {
+  if (typeof window === 'undefined') return false;
+  
+  const loginTimestamp = window.localStorage.getItem('loginTimestamp');
+  if (!loginTimestamp) return false;
+
+  const thirtyDaysInMs = 30 * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  
+  return now - parseInt(loginTimestamp, 10) > thirtyDaysInMs;
 };
 
 export const getApiErrorMessage = (error, fallback = 'Something went wrong. Please try again.') => {

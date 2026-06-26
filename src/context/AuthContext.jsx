@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { authAPI, mapUser, getStoredAccessToken, getStoredUser, setStoredUser } from '../services/api';
+import { authAPI, mapUser, getStoredAccessToken, getStoredUser, setStoredUser, clearStoredSession } from '../services/api';
+import { isSessionExpired } from '../services/apiClient';
 import { beginGoogleOAuth, clearGoogleRoleHint, syncSupabaseSessionToBackend } from '../services/supabaseAuthService';
 import { isSupabaseConfigured, supabase } from '../services/supabaseClient';
 
@@ -18,12 +19,34 @@ export const AuthProvider = ({ children }) => {
     return mapped;
   };
 
+  const logout = async () => {
+    try {
+      if (isSupabaseConfigured && supabase) {
+        await supabase.auth.signOut();
+      }
+      await authAPI.logout();
+    } catch (e) {
+      console.error('Logout error on server:', e);
+    } finally {
+      clearGoogleRoleHint();
+      applyUser(null);
+      clearStoredSession();
+    }
+  };
+
   async function fetchUser() {
     try {
       const accessToken = getStoredAccessToken();
       if (!accessToken) {
         applyUser(null);
         setLoading(false);
+        return null;
+      }
+
+      // Check if session is older than 30 days
+      if (isSessionExpired()) {
+        console.warn('Session expired after 30 days. Logging out.');
+        await logout();
         return null;
       }
 
@@ -47,6 +70,7 @@ export const AuthProvider = ({ children }) => {
     let subscription;
     let cancelled = false;
     let keepAliveId;
+    let sessionCheckId;
 
     const refreshBackendSession = async () => {
       if (!isSupabaseConfigured || !supabase || cancelled) {
@@ -66,6 +90,13 @@ export const AuthProvider = ({ children }) => {
     };
 
     const restoreUser = async () => {
+      // Check for 30-day expiration immediately on boot
+      if (isSessionExpired()) {
+        await logout();
+        setLoading(false);
+        return;
+      }
+
       const storedUser = getStoredUser();
       if (storedUser && getStoredAccessToken()) {
         setUserState(mapUser(storedUser));
@@ -119,11 +150,21 @@ export const AuthProvider = ({ children }) => {
 
     restoreUser();
 
+    // Periodically check if session expires while the tab is open
+    sessionCheckId = window.setInterval(() => {
+      if (isSessionExpired()) {
+        logout();
+      }
+    }, 60 * 60 * 1000); // Check every hour
+
     return () => {
       cancelled = true;
       subscription?.unsubscribe();
       if (keepAliveId) {
         window.clearInterval(keepAliveId);
+      }
+      if (sessionCheckId) {
+        window.clearInterval(sessionCheckId);
       }
     };
   }, []);
@@ -159,20 +200,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = async () => {
-    try {
-      if (isSupabaseConfigured && supabase) {
-        await supabase.auth.signOut();
-      }
-      await authAPI.logout();
-    } catch (e) {
-      console.error('Logout error on server:', e);
-    } finally {
-      clearGoogleRoleHint();
-      applyUser(null);
-    }
-  };
-
   const value = {
     user,
     setUser: applyUser,
@@ -180,8 +207,6 @@ export const AuthProvider = ({ children }) => {
     isAuthenticated,
     login,
     register,
-    // Don't pre-assign a role for Google login — new users will be redirected to /role-selection
-    // by ProtectedRoute when their backend user has no role set yet.
     loginWithGoogle: () => beginGoogleOAuth(null),
     registerWithGoogle: (role) => beginGoogleOAuth(role || 'client'),
     logout,
