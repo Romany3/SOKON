@@ -674,19 +674,6 @@ export const ApartmentDetails = () => {
                 />
               </div>
 
-              <div>
-                <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  Message to owner
-                </label>
-                <textarea
-                  placeholder="Hi, I would like to book this apartment..."
-                  value={bookingForm.message}
-                  onChange={(event) => setBookingForm((current) => ({ ...current, message: event.target.value }))}
-                  className="min-h-[120px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
-                  rows="4"
-                />
-              </div>
-
               <button
                 type="submit"
                 disabled={bookingLoading}
