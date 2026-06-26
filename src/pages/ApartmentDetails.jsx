@@ -115,7 +115,6 @@ export const ApartmentDetails = () => {
         comment: '',
       });
       setNewReview({ rating: 5 });
-      await loadReviews();
       const response = await apartmentsAPI.getApartment(id);
       setApartment(response.data);
     } catch (err) {
@@ -130,12 +129,14 @@ export const ApartmentDetails = () => {
     setIsGalleryModalOpen(true);
   };
 
-  const goToNextImage = () => {
+  const goToNextImage = (e) => {
+    e.stopPropagation();
     if (!images.length) return;
     setSelectedImageIndex((current) => (current + 1) % images.length);
   };
 
-  const goToPreviousImage = () => {
+  const goToPreviousImage = (e) => {
+    e.stopPropagation();
     if (!images.length) return;
     setSelectedImageIndex((current) => (current - 1 + images.length) % images.length);
   };
@@ -270,25 +271,48 @@ export const ApartmentDetails = () => {
 
         <div className="mb-8">
           <h1 className="text-3xl font-black text-slate-900 md:text-4xl">{apartment.title || apartment.name}</h1>
-          <div className="mt-4">
-            <div className={`inline-flex items-center gap-2 rounded-2xl p-4 border ${isVerified ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-amber-50 border-amber-100 text-amber-700'}`}>
-              <i className={`fas ${isVerified ? 'fa-check-circle' : 'fa-exclamation-circle'}`}></i>
-              <p className="text-sm font-bold">This apartment is {isVerified ? '' : 'not'} verified by Sokon administrator</p>
-            </div>
-          </div>
         </div>
 
         <div className="overflow-hidden rounded-[32px] bg-white shadow-xl border border-slate-100">
-          <div className="bg-slate-900 aspect-video w-full overflow-hidden relative">
+          <div className="bg-slate-900 aspect-video w-full overflow-hidden relative group">
             {mediaUrl ? (
               <video controls className="h-full w-full object-cover" src={mediaUrl} />
             ) : (
-              <img src={images[0]} className="h-full w-full object-cover" alt="" />
+              <img 
+                src={images[0]} 
+                className="h-full w-full object-cover cursor-pointer transition duration-500 group-hover:scale-105" 
+                alt="" 
+                onClick={() => openGallery(0)}
+              />
+            )}
+            {!mediaUrl && images.length > 1 && (
+              <button 
+                onClick={() => openGallery(0)}
+                className="absolute bottom-6 right-6 bg-white/90 backdrop-blur px-4 py-2 rounded-xl text-xs font-black text-slate-900 shadow-lg flex items-center gap-2 hover:bg-white transition"
+              >
+                <i className="fas fa-images"></i> View all {images.length} photos
+              </button>
             )}
           </div>
 
           <div className="p-8 space-y-8">
-            <div className="flex flex-col md:flex-row justify-between gap-6 border-b border-slate-50 pb-8">
+            {/* Image Thumbnails Grid */}
+            {images.length > 1 && (
+              <div className="grid grid-cols-4 md:grid-cols-6 gap-3">
+                {images.map((img, idx) => (
+                  <div 
+                    key={idx} 
+                    onClick={() => openGallery(idx)}
+                    className="aspect-square rounded-2xl overflow-hidden cursor-pointer border-2 border-transparent hover:border-primary transition group relative"
+                  >
+                    <img src={img} className="h-full w-full object-cover transition duration-300 group-hover:scale-110" alt={`Room ${idx + 1}`} />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition"></div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex flex-col md:flex-row justify-between gap-6 border-b border-slate-50">
                <div className="space-y-3">
                   <p className="text-slate-500 font-medium flex items-center gap-2">
                     <i className="fas fa-location-dot text-primary"></i> {locationLabel}
@@ -303,6 +327,12 @@ export const ApartmentDetails = () => {
                   <span className="block text-[10px] font-black uppercase text-slate-400 mb-1">Monthly Rent</span>
                   <span className="text-3xl font-black text-primary">${apartment.price}</span>
                </div>
+            </div>
+
+            {/* Verification Badge Section - Moved above grid/description */}
+            <div className={`inline-flex items-center gap-2 rounded-2xl p-4 border w-full ${isVerified ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-amber-50 border-amber-100 text-amber-700'}`}>
+              <i className={`fas ${isVerified ? 'fa-check-circle' : 'fa-exclamation-circle'}`}></i>
+              <p className="text-sm font-bold">This apartment is {isVerified ? '' : 'not'} verified by Sokon administrator</p>
             </div>
 
             <div className="grid lg:grid-cols-2 gap-10">
@@ -397,6 +427,62 @@ export const ApartmentDetails = () => {
         </div>
       </div>
 
+      {/* Image Gallery Modal */}
+      {isGalleryModalOpen && (
+        <div 
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/95 backdrop-blur-md p-4"
+          onClick={() => setIsGalleryModalOpen(false)}
+        >
+          <button 
+            onClick={() => setIsGalleryModalOpen(false)} 
+            className="absolute top-8 right-8 h-12 w-12 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition text-xl z-[70]"
+          >
+            <i className="fas fa-times"></i>
+          </button>
+          
+          {images.length > 1 && (
+            <>
+              <button 
+                onClick={goToPreviousImage}
+                className="absolute left-4 md:left-8 h-14 w-14 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition text-2xl z-[70]"
+              >
+                <i className="fas fa-chevron-left"></i>
+              </button>
+              <button 
+                onClick={goToNextImage}
+                className="absolute right-4 md:right-8 h-14 w-14 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition text-2xl z-[70]"
+              >
+                <i className="fas fa-chevron-right"></i>
+              </button>
+            </>
+          )}
+
+          <div className="relative mt-16 max-w-5xl w-full h-full flex flex-col items-center justify-center p-4" onClick={e => e.stopPropagation()}>
+            <img 
+              src={images[selectedImageIndex]} 
+              className="max-h-[65vh] w-auto object-contain rounded-2xl shadow-2xl select-none" 
+              alt={`Apartment view ${selectedImageIndex + 1}`} 
+            />
+            <div className="mt-6 flex flex-col items-center gap-2">
+              <span className="px-4 py-2 bg-white/10 backdrop-blur rounded-full text-white text-sm font-bold">
+                {selectedImageIndex + 1} / {images.length}
+              </span>
+              <div className="flex gap-2 mt-2 overflow-x-auto max-w-full px-4 pb-2">
+                {images.map((img, idx) => (
+                  <div 
+                    key={idx}
+                    onClick={() => setSelectedImageIndex(idx)}
+                    className={`h-16 w-16 rounded-xl overflow-hidden cursor-pointer border-2 transition-all flex-shrink-0 ${selectedImageIndex === idx ? 'border-primary scale-110 shadow-lg shadow-primary/20' : 'border-transparent opacity-50 hover:opacity-100'}`}
+                  >
+                    <img src={img} className="h-full w-full object-cover" alt="" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isBookingModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4">
           <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-lg p-8 relative animate-in zoom-in-95 duration-200">
@@ -419,7 +505,7 @@ export const ApartmentDetails = () => {
                    <SummaryRow label="Stay Duration" value={`${bookingSummary.months} Months (${bookingSummary.days} Days)`} />
                    <SummaryRow label="Price per Month" value={`$${bookingSummary.unitPrice}`} />
                    <SummaryRow label="Occupants" value={`${bookingSummary.people} Person`} />
-                   <div className="flex justify-between items-center pt-3 border-t border-slate-200"><span className="text-slate-900 font-black">Total Price</span><span className="text-2xl font-black text-primary">{bookingSummary.totalPrice} EGY</span></div>
+                   <div className="flex justify-between items-center pt-3 border-t border-slate-200"><span className="text-slate-900 font-black">Total Price</span><span className="text-2xl font-black text-primary">${bookingSummary.totalPrice}</span></div>
                 </div>
               )}
 
