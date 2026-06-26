@@ -144,8 +144,13 @@ export const ApartmentDetails = () => {
   };
 
   const handleMessageOwner = async () => {
-    if (!user || !apartment?.owner?._id) {
+    if (!user) {
       navigate('/login');
+      return;
+    }
+
+    if (!apartment?.owner?._id) {
+      alert('Owner information is not available.');
       return;
     }
 
@@ -176,6 +181,7 @@ export const ApartmentDetails = () => {
       navigate('/messages');
     } catch (error) {
       console.error('Error opening conversation:', error);
+      alert('Could not start a conversation with the owner.');
     }
   };
 
@@ -462,19 +468,15 @@ export const ApartmentDetails = () => {
                     </div>
                   </div>
 
-                  {isEligible ? (
+                  {user?._id !== apartment.owner?._id && (
                     <button
                       type="button"
                       onClick={handleMessageOwner}
                       className="rounded-full bg-white px-5 py-3 font-semibold text-slate-900 shadow-sm transition hover:bg-slate-100"
                     >
                       <i className="far fa-comment-dots mr-2 text-primary"></i>
-                      Message owner
+                      Contact owner
                     </button>
-                  ) : (
-                    <div className="rounded-full bg-slate-100 px-5 py-3 text-sm font-semibold text-slate-500">
-                      Message available after booking approval
-                    </div>
                   )}
                 </div>
               </div>

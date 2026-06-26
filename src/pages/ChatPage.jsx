@@ -18,31 +18,46 @@ export const ChatPage = () => {
   const [attachments, setAttachments] = useState([]);
   const [sending, setSending] = useState(false);
 
-  useEffect(() => {
-    const loadConversation = async () => {
-      setLoading(true);
+  // Function to load conversation data
+  const loadConversation = async (isBackground = false) => {
+    if (!isBackground) setLoading(true);
 
-      try {
-        const response = await chatAPI.getConversation(conversationId);
-        const data = response.data?.conversation || response.data;
-        setConversation(data || null);
-
-        if (data) {
-          await chatAPI.markConversationAsRead(conversationId);
-        }
-      } catch (error) {
-        console.error('Error loading conversation:', error);
-        setConversation(null);
-      } finally {
-        setLoading(false);
+    try {
+      const response = await chatAPI.getConversation(conversationId);
+      const data = response.data?.conversation || response.data;
+      
+      // Update conversation only if we have data and it's different (or first load)
+      if (data) {
+        setConversation(data);
+        await chatAPI.markConversationAsRead(conversationId);
       }
-    };
+    } catch (error) {
+      console.error('Error loading conversation:', error);
+      if (!isBackground) setConversation(null);
+    } finally {
+      if (!isBackground) setLoading(false);
+    }
+  };
 
+  // Initial load
+  useEffect(() => {
     if (conversationId) {
-      loadConversation();
+      loadConversation(false);
     }
   }, [conversationId, storeVersion]);
 
+  // Polling for new messages every 3 seconds
+  useEffect(() => {
+    if (!conversationId) return;
+
+    const interval = setInterval(() => {
+      loadConversation(true);
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [conversationId]);
+
+  // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [conversation?.messages?.length]);
@@ -80,6 +95,8 @@ export const ChatPage = () => {
 
       setText('');
       setAttachments([]);
+      // Refresh immediately after sending
+      await loadConversation(true);
     } catch (error) {
       console.error('Error sending message:', error);
     } finally {
@@ -144,9 +161,9 @@ export const ChatPage = () => {
           </div>
 
           <div className="flex-1 overflow-y-auto bg-slate-50 px-4 py-6 md:px-6">
-            {loading ? (
-              <div className="flex h-full items-center justify-center text-slate-500">
-                Loading conversation...
+            {loading && !conversation ? (
+              <div className="flex h-full items-center justify-center">
+                 <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto"></div>
               </div>
             ) : !conversation ? (
               <div className="flex h-full items-center justify-center text-center text-slate-500">

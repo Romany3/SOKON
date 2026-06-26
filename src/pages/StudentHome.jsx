@@ -152,7 +152,7 @@ export const StudentHome = () => {
                 <label className="block mb-1 text-xs font-bold text-slate-500 uppercase ml-2">Min Price</label>
                 <input
                   type="number"
-                  placeholder="e.g. 1000"
+                  placeholder="0"
                   value={filters.minPrice}
                   onChange={(event) => setFilters((current) => ({ ...current, minPrice: event.target.value }))}
                   className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/20"
@@ -162,7 +162,7 @@ export const StudentHome = () => {
                 <label className="block mb-1 text-xs font-bold text-slate-500 uppercase ml-2">Max Price</label>
                 <input
                   type="number"
-                  placeholder="e.g. 5000"
+                  placeholder="Any"
                   value={filters.maxPrice}
                   onChange={(event) => setFilters((current) => ({ ...current, maxPrice: event.target.value }))}
                   className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/20"
@@ -215,7 +215,7 @@ export const StudentHome = () => {
         )}
       </div>
 
-      <UniversitySection allApartments={allApartments} />
+      <UniversitySection allApartments={allApartments} limit={6} />
 
       <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="mb-6 flex items-center justify-between gap-4">

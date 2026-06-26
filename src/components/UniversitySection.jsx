@@ -52,7 +52,7 @@ const getDistance = (lat1, lon1, lat2, lon2) => {
   return R * c; // Distance in km
 };
 
-export const UniversitySection = ({ allApartments }) => {
+export const UniversitySection = ({ allApartments, limit }) => {
   const [selectedUni, setSelectedUni] = useState(UNIVERSITIES[0]);
   const navigate = useNavigate();
 
@@ -76,11 +76,12 @@ export const UniversitySection = ({ allApartments }) => {
       return { ...apt, calculatedDistance: distance };
     });
 
-    // Sort all by closest distance and take top 6
-    return withDistance
-      .sort((a, b) => a.calculatedDistance - b.calculatedDistance)
-      .slice(0, 6);
-  }, [selectedUni, allApartments]);
+    // Sort all by closest distance
+    const sorted = withDistance.sort((a, b) => a.calculatedDistance - b.calculatedDistance);
+    
+    // Apply limit if provided
+    return limit ? sorted.slice(0, limit) : sorted;
+  }, [selectedUni, allApartments, limit]);
 
   // Standard embed link that works without API key for basic locations
   const fallbackMapUrl = `https://maps.google.com/maps?q=${selectedUni.lat},${selectedUni.lng}&z=15&output=embed`;
@@ -91,17 +92,17 @@ export const UniversitySection = ({ allApartments }) => {
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">Education Hub</p>
           <h2 className="mt-2 text-3xl font-black text-slate-900">Nearby {selectedUni.name}</h2>
-          <p className="mt-2 text-slate-500 text-sm">Showing the closest verified housing to your campus.</p>
+          <p className="mt-2 text-slate-500 text-sm">Sorted by distance from the selected campus.</p>
         </div>
 
-        <div className="flex gap-2 bg-slate-100 p-1.5 rounded-2xl">
+        <div className="flex gap-2 bg-slate-100 p-1.5 rounded-2xl overflow-x-auto max-w-full">
           {UNIVERSITIES.map((uni) => (
             <button
               key={uni.id}
               onClick={() => setSelectedUni(uni)}
-              className={`px-9 py-3 rounded-xl text-xs font-bold transition-all ${
+              className={`px-6 py-3 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
                 selectedUni.id === uni.id
-                  ? 'bg-white text-[#245999] shadow-sm'
+                  ? 'bg-white text-primary shadow-sm'
                   : 'text-slate-500 hover:text-slate-700'
               }`}
             >
@@ -113,9 +114,9 @@ export const UniversitySection = ({ allApartments }) => {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-12">
         {/* Map & Uni Info */}
-        <div className="lg:col-span-4 space-y-6">
+        <div className="lg:col-span-4 lg:sticky lg:top-20 h-fit space-y-6">
           <div className="bg-white rounded-[32px] border border-slate-200 overflow-hidden shadow-sm flex flex-col">
-            <div className="h-48 w-full relative">
+            <div className="h-48 w-full relative bg-slate-100">
               <iframe
                 title="University Location"
                 width="100%"
@@ -130,7 +131,7 @@ export const UniversitySection = ({ allApartments }) => {
             <div className="p-6 flex-1 flex flex-col">
               <div className="mb-4">
                 <h3 className="text-xl font-black text-slate-900">{selectedUni.name}</h3>
-                <p className="text-[#245999] font-bold text-xs uppercase tracking-wider">{selectedUni.nameAr}</p>
+                <p className="text-primary font-bold text-xs uppercase tracking-wider">{selectedUni.nameAr}</p>
               </div>
               <p className="text-slate-600 text-sm leading-relaxed mb-6">
                 {selectedUni.description}
@@ -138,7 +139,7 @@ export const UniversitySection = ({ allApartments }) => {
 
               <div className="mt-auto pt-6 border-t border-slate-50">
                 <div className="flex items-center gap-3 text-sm font-semibold text-slate-500">
-                  <i className="fas fa-location-dot text-[#245999]"></i>
+                  <i className="fas fa-location-dot text-primary"></i>
                   {selectedUni.district} District
                 </div>
               </div>
@@ -146,32 +147,34 @@ export const UniversitySection = ({ allApartments }) => {
           </div>
         </div>
 
-        {/* Nearby Apartments Grid - Now like Featured Apartments */}
+        {/* Nearby Apartments Grid */}
         <div className="lg:col-span-8">
           {nearbyApartments.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {nearbyApartments.map((apt) => (
-                <div key={apt._id} className="relative">
+                <div key={apt._id} className="relative group">
                   <ApartmentCard apartment={apt} />
                   {apt.calculatedDistance !== Infinity && (
-                    <div className="absolute top-4 right-4 z-10 bg-[#245999] text-white text-[10px] font-black px-2 py-1 rounded-lg shadow-lg uppercase tracking-tighter">
-                      {apt.calculatedDistance.toFixed(1)} km away
+                    <div className="absolute top-4 right-4 z-10 bg-primary text-white text-[10px] font-black px-2.5 py-1.5 rounded-lg shadow-lg uppercase tracking-wider">
+                      {apt.calculatedDistance < 1 
+                        ? `${(apt.calculatedDistance * 1000).toFixed(0)} m away`
+                        : `${apt.calculatedDistance.toFixed(1)} km away`}
                     </div>
                   )}
                 </div>
               ))}
             </div>
           ) : (
-            <div className="h-full flex items-center justify-center rounded-[32px] bg-slate-50 border-2 border-dashed border-slate-200 p-12 text-center">
+            <div className="h-full flex items-center justify-center rounded-[32px] bg-white border border-slate-200 p-12 text-center shadow-sm">
               <div>
-                <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
                   <i className="fas fa-building-circle-exclamation text-slate-300 text-2xl"></i>
                 </div>
                 <h4 className="text-slate-900 font-bold">No apartments available</h4>
-                <p className="text-slate-400 text-sm mt-2 max-w-xs">We couldn't find any apartments in the system yet.</p>
+                <p className="text-slate-400 text-sm mt-2 max-w-xs">We couldn't find any apartments near this university yet.</p>
                 <button
                   onClick={() => navigate('/apartments')}
-                  className="mt-6 text-[#245999] font-bold text-sm hover:underline"
+                  className="mt-6 text-primary font-bold text-sm hover:underline"
                 >
                   Browse all apartments
                 </button>
