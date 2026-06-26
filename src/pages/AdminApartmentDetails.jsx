@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { AdminNavbar } from '../components/AdminNavbar';
 import { apartmentsAPI } from '../services/api';
-import apiClient from '../services/apiClient';
+import apiClient, { getApiErrorMessage } from '../services/apiClient';
 import { AVATAR_SM_PLACEHOLDER } from '../utils/placeholders';
 
 export const AdminApartmentDetails = () => {
@@ -12,6 +12,7 @@ export const AdminApartmentDetails = () => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [isVerifyModalOpen, setIsVerifyModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchApartment = async () => {
@@ -40,6 +41,19 @@ export const AdminApartmentDetails = () => {
     } catch (err) {
       console.error('Error updating verification:', err);
       alert('Failed to update verification status');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setActionLoading(true);
+    try {
+      await apartmentsAPI.deleteApartment(id);
+      setIsDeleteModalOpen(false);
+      navigate('/admin/apartments');
+    } catch (err) {
+      alert(getApiErrorMessage(err, 'Failed to delete apartment'));
     } finally {
       setActionLoading(false);
     }
@@ -103,7 +117,10 @@ export const AdminApartmentDetails = () => {
                  Verify Listing
                </button>
              )}
-             <button className="px-6 py-3 rounded-2xl bg-red-50 text-red-600 font-bold hover:bg-red-100 transition flex items-center gap-2">
+             <button 
+               onClick={() => setIsDeleteModalOpen(true)}
+               className="px-6 py-3 rounded-2xl bg-red-50 text-red-600 font-bold hover:bg-red-100 transition flex items-center gap-2"
+             >
                <i className="fas fa-trash-alt"></i>
                Delete
              </button>
@@ -265,6 +282,43 @@ export const AdminApartmentDetails = () => {
               >
                 {actionLoading && <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
                 Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 px-4 py-6 backdrop-blur-sm">
+          <div className="relative w-full max-w-md rounded-[32px] bg-white p-8 shadow-2xl">
+            <div className="h-16 w-16 rounded-2xl flex items-center justify-center text-2xl mb-6 bg-red-50 text-red-600">
+              <i className="fas fa-trash-alt"></i>
+            </div>
+            
+            <h3 className="text-2xl font-black text-slate-900 mb-2">Delete Apartment</h3>
+            <p className="text-slate-500 mb-8 leading-relaxed">
+              Are you sure you want to permanently delete <span className="font-bold text-slate-900">{apartment.title}</span>? 
+              This action cannot be undone.
+            </p>
+
+            <div className="flex gap-4">
+              <button
+                type="button"
+                onClick={() => setIsDeleteModalOpen(false)}
+                className="flex-1 py-4 rounded-2xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 transition"
+                disabled={actionLoading}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={actionLoading}
+                className="flex-1 py-4 rounded-2xl bg-red-600 text-white font-bold hover:bg-red-700 transition shadow-lg shadow-red-200 flex items-center justify-center gap-2"
+              >
+                {actionLoading && <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
+                Delete Permanently
               </button>
             </div>
           </div>
