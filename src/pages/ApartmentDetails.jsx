@@ -32,7 +32,9 @@ export const ApartmentDetails = () => {
   });
 
   const [reviews, setReviews] = useState([]);
-  const [hasRented, setHasRented] = useState(false);
+  const [hasActiveBooking, setHasActiveBooking] = useState(false);
+  const [newReview, setNewReview] = useState({ rating: 5 });
+  const [submittingReview, setSubmittingReview] = useState(false);
 
   const isVerified = Boolean(apartment?.verified);
   const locationLabel =
@@ -41,19 +43,22 @@ export const ApartmentDetails = () => {
       : apartment?.locationAddress || apartment?.address || apartment?.location || '';
   const mediaUrl = apartment?.videoUrl || apartment?.video_url || '';
 
-  // Calculate booking summary & Total Price dynamically
+  // Step 6: Automatically calculate Total Price
   const bookingSummary = useMemo(() => {
     if (!bookingForm.startDate || !bookingForm.endDate || !apartment) return null;
     const start = new Date(bookingForm.startDate);
     const end = new Date(bookingForm.endDate);
     if (isNaN(start.getTime()) || isNaN(end.getTime()) || end <= start) return null;
-    const diffDays = Math.ceil(Math.abs(end - start) / (1000 * 60 * 60 * 24));
     
-    // Total price calculation: (Number of booking days) × (Apartment price)
+    const diffTime = Math.abs(end - start);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    // Formula: (Number of booking days) × (Apartment price)
     const totalPrice = diffDays * (apartment.price || 0); 
+
     return { 
       days: diffDays, 
-      totalPrice: totalPrice,
+      totalPrice: totalPrice.toFixed(2),
       apartmentName: apartment.title || apartment.name,
       start: bookingForm.startDate,
       end: bookingForm.endDate,
@@ -68,18 +73,15 @@ export const ApartmentDetails = () => {
         const response = await apartmentsAPI.getApartment(id);
         setApartment(response.data);
         
-        // Fetch reviews safely
         try {
           const resReviews = await reviewsAPI.getApartmentReviews(id);
           setReviews(resReviews.data?.reviews || []);
         } catch (e) {}
 
-        // Check if user already has a booking
         if (user) {
-          const resBookings = await bookingsAPI.getStudentBookings(user._id);
-          const list = resBookings.data?.bookings || [];
-          const already = list.some(b => String(b.apartmentId) === String(id) && ['pending', 'approved', 'accepted'].includes(b.status));
-          setHasRented(already);
+          // Check Existing Active Booking on load
+          const checkRes = await bookingsAPI.checkActiveBooking(user._id, id);
+          setHasActiveBooking(checkRes.exists);
         }
       } catch (error) {
         console.error('Error loading page data:', error);
@@ -90,26 +92,40 @@ export const ApartmentDetails = () => {
     if (id) loadData();
   }, [id, storeVersion, user]);
 
-  const handleOpenBookingModal = async () => {
-    // Authentication Validation
+  const handleReviewSubmit = async (e) => {
+    e.preventDefault();
+    setSubmittingReview(true);
     try {
-      const authCheck = await authAPI.me();
-      if (!authCheck.data?.user) {
-        alert('Please login before booking');
-        navigate('/login');
-        return;
-      }
-    } catch (e) {
+      await reviewsAPI.createReview({
+        apartmentId: id,
+        rating: newReview.rating,
+        comment: '',
+      });
+      setNewReview({ rating: 5 });
+      await loadReviews();
+      const response = await apartmentsAPI.getApartment(id);
+      setApartment(response.data);
+    } catch (err) {
+      alert(getApiErrorMessage(err, 'Failed to submit review'));
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+
+  const handleOpenBookingModal = async () => {
+    // Step 8: Verify user is authenticated
+    if (!isAuthenticated) {
       alert('Please login before booking');
       navigate('/login');
       return;
     }
 
-    // Check Existing Active Booking
+    // Step 4: Before creating booking check active booking
     setBookingLoading(true);
     try {
-      const checkRes = await bookingsAPI.checkActiveBooking(user?._id, id);
+      const checkRes = await bookingsAPI.checkActiveBooking(user._id, id);
       if (checkRes.exists) {
+        setHasActiveBooking(true);
         alert('You already have an active booking for this apartment');
         return;
       }
@@ -125,7 +141,7 @@ export const ApartmentDetails = () => {
     if (e) e.preventDefault();
     setBookingError('');
 
-    // Form Validation
+    // Step 3: Form Validation
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const start = new Date(bookingForm.startDate);
@@ -141,7 +157,7 @@ export const ApartmentDetails = () => {
 
     setBookingLoading(true);
     try {
-      // Create Booking API
+      // Step 7: Create Booking API
       await bookingsAPI.createBooking({
         apartmentId: id,
         apartmentName: apartment.title || apartment.name,
@@ -156,9 +172,9 @@ export const ApartmentDetails = () => {
         message: bookingForm.message
       });
 
+      // Step 10: Success Handling
       setBookingSuccess('Booking request sent successfully');
       setIsBookingModalOpen(false);
-      // Refresh and Navigate
       setTimeout(() => navigate('/my-bookings'), 2000);
     } catch (error) {
       setBookingError(getApiErrorMessage(error, 'Unable to create booking'));
@@ -169,6 +185,12 @@ export const ApartmentDetails = () => {
 
   const handleMessageOwner = async () => {
     if (!isAuthenticated) return navigate('/login');
+    
+    if (user?.role === 'owner' && apartment?.owner?._id !== user?._id) {
+      alert('Owners are not allowed to message other owners');
+      return;
+    }
+
     try {
       const response = await chatAPI.getOrCreateConversation({
         participantIds: [user._id, apartment.owner._id],
@@ -189,7 +211,6 @@ export const ApartmentDetails = () => {
   const availableSpots = Math.max(Number(apartment?.available_people ?? apartment?.max_people ?? 0) - Number(apartment?.occupiedCount || 0), 0);
   const currentImage = images[selectedImageIndex] || images[0] || '';
 
-  // Check if phone number exists for students
   const hasPhoneNumber = user?.phoneNumber || user?.phone;
   const isStudent = user?.role === 'student' || user?.role === 'client';
 
@@ -264,7 +285,6 @@ export const ApartmentDetails = () => {
                    <p className="mt-4 text-xs text-slate-400 font-medium italic">Available Spots: {apartment.available_people || availableSpots}</p>
                 </div>
                 
-                {/* Location Information Section */}
                 <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100">
                    <h3 className="font-black text-slate-900 mb-4 text-lg flex items-center gap-2">
                      <i className="fas fa-map-location-dot text-primary"></i> Location Information
@@ -293,38 +313,32 @@ export const ApartmentDetails = () => {
                     </div>
                  </div>
                  {user?._id !== apartment.owner?._id && (
-                   <button onClick={handleMessageOwner} className="bg-white px-6 py-3 rounded-2xl font-bold text-slate-700 shadow-sm hover:bg-slate-100 transition border border-slate-100">
+                   <button onClick={handleMessageOwner} className="bg-white px-6 py-3 rounded-2xl font-bold text-slate-700 shadow-sm hover:bg-slate-100 transition border border-slate-100 flex items-center gap-2">
+                     <i className="far fa-comment-dots text-primary"></i>
                      Contact Owner
                    </button>
                  )}
               </div>
             )}
 
-            {isStudent && !hasPhoneNumber ? (
-              <div className="bg-amber-50 border border-amber-200 rounded-[24px] p-6 text-center">
-                <p className="text-amber-800 font-bold mb-4">Please add your phone number before renting an apartment</p>
-                <Link
-                  to="/profile"
-                  className="inline-block w-full py-4 rounded-[20px] bg-amber-600 text-white font-black shadow-lg shadow-amber-600/20 hover:bg-amber-700 transition"
+            <div className="flex flex-col gap-4 sm:flex-row">
+              {isStudent || !user ? (
+                 <button
+                  onClick={handleOpenBookingModal}
+                  disabled={availableSpots === 0 || hasActiveBooking || bookingLoading}
+                  className="flex-1 rounded-2xl bg-primary py-4 text-center text-lg font-black text-white transition hover:opacity-95 disabled:bg-slate-200 disabled:text-slate-400 flex items-center justify-center gap-2"
                 >
-                  Complete Profile First
-                </Link>
-              </div>
-            ) : (isStudent || !user) && (
-              <button
-                onClick={handleOpenBookingModal}
-                disabled={availableSpots === 0 || hasRented}
-                className="w-full py-5 rounded-[24px] bg-primary text-white text-xl font-black shadow-lg shadow-primary/20 hover:opacity-95 transition disabled:bg-slate-200 disabled:text-slate-400"
-              >
-                {hasRented ? 'Already Requested' : availableSpots === 0 ? 'Apartment Full' : 'Rent Now'}
-              </button>
-            )}
-            
-            {user?.role === 'owner' && user?._id === apartment.owner?._id && (
-              <button onClick={() => navigate(`/edit-apartment/${id}`)} className="w-full py-5 rounded-[24px] bg-slate-900 text-white text-xl font-black shadow-lg shadow-slate-900/20 hover:bg-slate-800 transition">
-                Edit apartment
-              </button>
-            )}
+                  {bookingLoading ? <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : null}
+                  {hasActiveBooking ? 'Already Requested' : availableSpots === 0 ? 'Apartment Full' : bookingLoading ? 'Verifying...' : 'Rent Now'}
+                </button>
+              ) : null}
+              
+              {user?.role === 'owner' && user?._id === apartment.owner?._id && (
+                <button onClick={() => navigate(`/edit-apartment/${id}`)} className="flex-1 rounded-2xl bg-slate-900 py-4 text-center text-lg font-black text-white transition hover:bg-slate-800 shadow-lg shadow-slate-900/20">
+                  Edit apartment
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -343,17 +357,28 @@ export const ApartmentDetails = () => {
                 <Input label="Start Date" type="date" value={bookingForm.startDate} onChange={v => setBookingForm({...bookingForm, startDate: v})} />
                 <Input label="End Date" type="date" value={bookingForm.endDate} onChange={v => setBookingForm({...bookingForm, endDate: v})} />
               </div>
-              <Input label="Number of People" type="number" min="1" max={availableSpots} value={bookingForm.requestedOccupants} onChange={v => setBookingForm({...bookingForm, requestedOccupants: v})} />
+              <Input label="Number of People" type="number" min="1" max={availableSpots || capacity} value={bookingForm.requestedOccupants} onChange={v => setBookingForm({...bookingForm, requestedOccupants: v})} />
 
+              {/* Step 7: Booking Summary Card */}
               {bookingSummary && (
                 <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100 space-y-3">
-                   <div className="flex justify-between text-sm font-bold"><span className="text-slate-400">Stay Duration</span><span className="text-slate-900">{bookingSummary.days} Days</span></div>
+                   <h4 className="font-black text-slate-900 uppercase tracking-widest text-[10px] border-b border-slate-200 pb-2">Booking Summary</h4>
+                   <SummaryRow label="Apartment" value={bookingSummary.apartmentName} />
+                   <SummaryRow label="Start Date" value={bookingSummary.start} />
+                   <SummaryRow label="End Date" value={bookingSummary.end} />
+                   <SummaryRow label="Stay Duration" value={`${bookingSummary.days} Days`} />
+                   <SummaryRow label="Occupants" value={`${bookingSummary.people} Person`} />
                    <div className="flex justify-between items-center pt-3 border-t border-slate-200"><span className="text-slate-900 font-black">Total Price</span><span className="text-2xl font-black text-primary">${bookingSummary.totalPrice}</span></div>
                 </div>
               )}
 
               <button type="submit" disabled={bookingLoading} className="w-full py-4 rounded-2xl bg-primary text-white font-black hover:opacity-95 transition flex items-center justify-center gap-3">
-                {bookingLoading ? <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : 'Confirm Booking'}
+                {bookingLoading ? (
+                  <>
+                    <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    Creating booking...
+                  </>
+                ) : 'Confirm Booking'}
               </button>
             </form>
           </div>
@@ -376,9 +401,9 @@ const Input = ({ label, type, value, onChange, ...rest }) => (
   </div>
 );
 
-const InfoTile = ({ label, value }) => (
-  <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">{label}</p>
-    <p className="text-sm font-black text-slate-900">{value}</p>
+const SummaryRow = ({ label, value }) => (
+  <div className="flex justify-between text-sm font-bold">
+    <span className="text-slate-400">{label}</span>
+    <span className="text-slate-900 truncate ml-4 text-right">{value}</span>
   </div>
 );

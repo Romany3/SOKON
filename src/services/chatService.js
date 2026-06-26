@@ -1,6 +1,6 @@
 import apiClient, { emitStoreChange, getStoredUser } from './apiClient';
 import { mapApartment } from './apartmentService';
-import { mapUser } from './userService';
+import { mapUser, usersAPI } from './userService';
 
 const asArray = (value) => {
   if (Array.isArray(value)) {
@@ -269,7 +269,24 @@ export const chatAPI = {
   },
 
   getOrCreateConversation: async ({ participantIds = [], apartmentId, participants = [] } = {}) => {
-    // 1. Check if a conversation already exists between these two users
+    // 1. Role Validation (Security Rule)
+    const currentUser = getStoredUser();
+    const otherParticipantId = participantIds.find(id => id !== currentUser?._id);
+    
+    // Check if both are owners
+    if (currentUser?.role === 'owner') {
+      const targetUserRes = await usersAPI.getUserById(otherParticipantId).catch(() => null);
+      const targetUser = targetUserRes?.data || participants.find(p => p._id === otherParticipantId);
+      
+      if (targetUser?.role === 'owner') {
+        return { 
+          success: false, 
+          message: "Owners are not allowed to message other owners" 
+        };
+      }
+    }
+
+    // 2. Check if a conversation already exists between these two users
     const response = await chatAPI.getChats();
     const chats = response.data?.chats || response.data?.conversations || [];
     const existingChat = findExistingChat(chats, participantIds);
@@ -278,7 +295,7 @@ export const chatAPI = {
       return { data: { conversation: existingChat } };
     }
 
-    // 2. Build displayNames / displayPhotos from provided participant metadata
+    // 3. Build displayNames / displayPhotos from provided participant metadata
     const displayNames = {};
     const displayPhotos = {};
     participants.forEach((p) => {
@@ -289,7 +306,7 @@ export const chatAPI = {
       }
     });
 
-    // 3. Generate a deterministic chat ID: sorted participant IDs joined by '_'
+    // 4. Generate a deterministic chat ID: sorted participant IDs joined by '_'
     const chatId = [...participantIds].map((id) => `${id}`).sort().join('_');
 
     const createResponse = await apiClient.post('/chats', {
@@ -303,7 +320,7 @@ export const chatAPI = {
     });
 
     emitStoreChange();
-    return { data: { conversation: mapChat(createResponse.data?.chat || createResponse.data?.data?.chat || createResponse.data) } };
+    return { data: mapChat(createResponse.data?.chat || createResponse.data?.data?.chat || createResponse.data) };
   },
 
   sendMessage: async (chatId, payload = {}) => {

@@ -9,7 +9,7 @@ const asArray = (value) => {
 
 const normalizeStatus = (status) => {
   const value = `${status || 'pending'}`.trim().toLowerCase();
-  // Standardizing statuses for UI labels per requirement
+  // Standardizing statuses for UI labels: Pending, Accepted, Rejected, Cancelled
   if (value === 'accepted' || value === 'approved') return 'accepted';
   if (value === 'rejected' || value === 'declined') return 'rejected';
   if (value === 'canceled' || value === 'cancelled') return 'cancelled';
@@ -83,8 +83,7 @@ export const bookingsAPI = {
     const bookingData = response.data?.booking || response.data;
     const bookingId = bookingData?._id || bookingData?.id;
 
-    // Requirement: Create notification for apartment owner
-    // API: POST /functions/send-booking-notification
+    // Requirement: POST /functions/send-booking-notification
     if (bookingId && data.ownerId) {
       try {
         await apiClient.post('/functions/send-booking-notification', {
@@ -117,6 +116,13 @@ export const bookingsAPI = {
 
   getMyBookings: async (userId = getStoredUser()?.id || getStoredUser()?._id) =>
     bookingsAPI.getStudentBookings(userId),
+
+  // Requirement: POST /bookings/{bookingId}/status
+  updateBookingStatus: async ({ bookingId, status }) => {
+    const response = await apiClient.post(`/bookings/${bookingId}/status`, { status });
+    emitStoreChange();
+    return { data: mapBooking(response.data?.booking || response.data) };
+  },
 
   // Requirement: POST /rpc/update_booking_status_with_capacity
   updateBookingStatusWithCapacity: async ({ bookingId, status }) => {

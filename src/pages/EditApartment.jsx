@@ -169,7 +169,7 @@ export const EditApartment = () => {
         if (img instanceof File || img instanceof Blob) {
           form.append('images', img); // New files
         } else if (typeof img === 'string') {
-          form.append('existingImages', img); // Existing URLs to keep
+          form.append('existingImages', img); // Existing URLs
         }
       });
 
@@ -227,7 +227,6 @@ export const EditApartment = () => {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-8">
-          {/* Basic Info */}
           <div className="bg-white rounded-[32px] shadow-sm border border-slate-100 p-8">
             <h2 className="text-2xl font-black text-slate-900 mb-6 flex items-center gap-3">
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary text-sm">1</span>
