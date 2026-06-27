@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Navbar } from '../components/Navbar';
-import { bookingsAPI } from '../services/api';
+import { bookingsAPI, chatAPI } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { useStoreVersion } from '../hooks/useStoreVersion';
+import { getApiErrorMessage } from '../services/apiClient';
 import { APARTMENT_PLACEHOLDER, AVATAR_SM_PLACEHOLDER } from '../utils/placeholders';
 
 const statusStyles = {
@@ -16,9 +18,11 @@ const statusStyles = {
 
 export const BookingRequests = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const storeVersion = useStoreVersion();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [feedback, setFeedback] = useState({ show: false, title: '', message: '', type: '' });
 
   useEffect(() => {
     const loadRequests = async () => {
@@ -26,7 +30,6 @@ export const BookingRequests = () => {
       try {
         const response = await bookingsAPI.getOwnerBookings();
         const data = response.data?.bookings || response.data || [];
-        // Sort newest first
         const list = Array.isArray(data) ? data : [];
         setBookings([...list].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
       } catch (error) {
@@ -44,26 +47,45 @@ export const BookingRequests = () => {
     approved: bookings.filter((b) => b.status === 'accepted' || b.status === 'approved').length,
   }), [bookings]);
 
-  const handleUpdateStatus = async (id, status) => {
-    const actionName = status === 'accepted' ? 'approve' : status === 'rejected' ? 'reject' : 'cancel';
-    if (!window.confirm(`Are you sure you want to ${actionName} this booking?`)) return;
+  const showFeedback = (title, message, type) => {
+    setFeedback({ show: true, title, message, type });
+    setTimeout(() => setFeedback({ show: false, title: '', message: '', type: '' }), 3000);
+  };
 
+  const handleUpdateStatus = async (id, status) => {
     try {
       if (status === 'accepted') {
         await bookingsAPI.acceptBooking(id);
+        showFeedback('Booking Approved', 'Booking request approved successfully', 'success');
       } else if (status === 'rejected') {
         await bookingsAPI.rejectBooking(id);
-      } else if (status === 'cancelled') {
-        await bookingsAPI.cancelBooking(id);
+        showFeedback('Booking Declined', 'Booking request declined successfully', 'error');
       }
       
-      // Refresh list after update
       const response = await bookingsAPI.getOwnerBookings();
       const data = response.data?.bookings || response.data || [];
       const list = Array.isArray(data) ? data : [];
       setBookings([...list].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
     } catch (error) {
-      alert(error?.response?.data?.message || 'Failed to update status');
+      alert(getApiErrorMessage(error, 'Failed to update status'));
+    }
+  };
+
+  const handleChatStudent = async (student, apartment) => {
+    if (!student?._id) return;
+    try {
+      const response = await chatAPI.getOrCreateConversation({
+        participantIds: [user._id, student._id],
+        apartmentId: apartment?._id,
+        participants: [
+          { _id: user._id, fullName: user.fullName || '', photoUrl: user.avatar || '', role: 'owner' },
+          { _id: student._id, fullName: student.fullName || '', photoUrl: student.avatar || '', role: 'student' },
+        ],
+      });
+      const conversation = response.data?.conversation || response.data;
+      if (conversation?._id) navigate(`/messages/${conversation._id}`);
+    } catch (error) {
+      alert(getApiErrorMessage(error, 'Could not start chat with student.'));
     }
   };
 
@@ -108,12 +130,13 @@ export const BookingRequests = () => {
             {bookings.map((booking) => {
               const style = statusStyles[booking.status] || statusStyles.pending;
               const student = booking.student || {};
+              const apartment = booking.apartment || {};
 
               return (
                 <div key={booking._id} className="overflow-hidden rounded-[32px] bg-white shadow-sm border border-slate-100">
                   <div className="grid gap-0 md:grid-cols-[300px_1fr]">
                     <div className="h-64 bg-slate-200 md:h-auto relative">
-                      <img src={booking.apartment?.images?.[0] || APARTMENT_PLACEHOLDER} className="h-full w-full object-cover" alt="" />
+                      <img src={apartment.images?.[0] || APARTMENT_PLACEHOLDER} className="h-full w-full object-cover" alt="" />
                       <div className="absolute top-4 left-4">
                          <span className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest shadow-lg ${style}`}>
                            {booking.status}
@@ -124,21 +147,23 @@ export const BookingRequests = () => {
                     <div className="p-8 flex flex-col justify-between">
                       <div className="flex flex-col lg:flex-row gap-8 justify-between">
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-xl font-bold text-slate-400 uppercase tracking-widest">Student Information</h3>
-                          <div className="mt-4 flex items-center gap-4">
-                             <div className="h-14 w-14 rounded-2xl bg-slate-100 overflow-hidden border border-slate-200">
+                          <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 pb-2 mb-4">Student Information</h3>
+                          <div className="flex items-center gap-4">
+                             <div className="h-16 w-16 rounded-2xl bg-slate-100 overflow-hidden border border-slate-200 flex-shrink-0">
                                <img src={student.avatar || AVATAR_SM_PLACEHOLDER} className="h-full w-full object-cover" alt="" />
                              </div>
-                             <div>
-                               <h4 className="text-2xl font-black text-slate-900">{student.fullName || 'Student'}</h4>
-                               <p className="text-slate-500 font-bold text-sm uppercase tracking-tighter">{student.faculty} • {student.phone}</p>
+                             <div className="min-w-0">
+                               <h4 className="text-2xl font-black text-slate-900 truncate">{student.fullName || 'Student'}</h4>
+                               <p className="text-slate-500 font-bold text-sm truncate">{student.email}</p>
+                               <p className="text-slate-400 font-bold text-xs uppercase tracking-tighter mt-1">{student.faculty || student.college} • {student.phone}</p>
                              </div>
                           </div>
 
-                          <div className="mt-8">
-                             <h3 className="text-xl font-black text-slate-900">{booking.apartment?.title}</h3>
+                          <div className="mt-8 pt-6 border-t border-slate-50">
+                             <p className="text-[10px] font-black uppercase text-primary tracking-widest mb-1">Requested Apartment</p>
+                             <h3 className="text-xl font-black text-slate-900">{apartment.title || booking.apartmentName}</h3>
                              <p className="text-slate-500 font-medium flex items-center gap-2 mt-1">
-                               <i className="fas fa-location-dot text-primary"></i> {booking.apartment?.district}, {booking.apartment?.city}
+                               <i className="fas fa-location-dot text-primary text-xs"></i> {apartment.district || booking.apartmentAddress}, {apartment.city || 'Asyut'}
                              </p>
                           </div>
                         </div>
@@ -147,19 +172,23 @@ export const BookingRequests = () => {
                            <div className="grid grid-cols-2 gap-3">
                               <DataTile label="Duration" value={booking.startDate + ' to ' + booking.endDate} full />
                               <DataTile label="Occupants" value={booking.people_count + ' Person'} />
-                              <DataTile label="Payout" value={'$' + booking.totalPrice} highlight />
+                              <DataTile label="Payout" value={booking.totalPrice + ' EGY'} highlight />
                            </div>
 
-                           <div className="flex gap-2 pt-2">
+                           <div className="flex flex-col gap-2 pt-2">
                              {booking.status === 'pending' && (
-                               <>
-                                 <button onClick={() => handleUpdateStatus(booking._id, 'accepted')} className="flex-1 py-3 rounded-xl bg-emerald-600 text-white font-bold text-xs uppercase hover:bg-emerald-700 transition">Approve</button>
-                                 <button onClick={() => handleUpdateStatus(booking._id, 'rejected')} className="flex-1 py-3 rounded-xl bg-rose-600 text-white font-bold text-xs uppercase hover:bg-rose-700 transition">Decline</button>
-                               </>
+                               <div className="flex gap-2">
+                                 <button onClick={() => handleUpdateStatus(booking._id, 'accepted')} className="flex-1 py-4 rounded-2xl bg-emerald-600 text-white font-bold text-xs uppercase hover:bg-emerald-700 transition shadow-lg shadow-emerald-200">Approve</button>
+                                 <button onClick={() => handleUpdateStatus(booking._id, 'rejected')} className="flex-1 py-4 rounded-2xl bg-rose-600 text-white font-bold text-xs uppercase hover:bg-rose-700 transition shadow-lg shadow-rose-200">Decline</button>
+                               </div>
                              )}
-                             {(booking.status === 'accepted' || booking.status === 'approved') && (
-                               <button onClick={() => handleUpdateStatus(booking._id, 'cancelled')} className="w-full py-3 rounded-xl bg-slate-100 text-slate-500 font-bold text-xs uppercase hover:bg-slate-200 transition">Cancel Booking</button>
-                             )}
+                             <button 
+                                onClick={() => handleChatStudent(student, apartment)}
+                                className="w-full py-4 rounded-2xl bg-slate-900 text-white font-bold text-xs uppercase hover:bg-slate-800 transition flex items-center justify-center gap-2"
+                             >
+                               <i className="fas fa-comment-dots"></i>
+                               Chat Student
+                             </button>
                            </div>
                         </div>
                       </div>
@@ -177,6 +206,25 @@ export const BookingRequests = () => {
           </div>
         )}
       </div>
+
+      {/* Feedback Popup */}
+      {feedback.show && (
+        <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[200] animate-in slide-in-from-top duration-300">
+           <div className={`rounded-3xl shadow-2xl px-8 py-6 flex items-center gap-4 border ${
+             feedback.type === 'success' ? 'bg-white border-emerald-100' : 'bg-white border-rose-100'
+           }`}>
+             <div className={`h-12 w-12 rounded-2xl flex items-center justify-center text-xl ${
+               feedback.type === 'success' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
+             }`}>
+               <i className={`fas ${feedback.type === 'success' ? 'fa-check-circle' : 'fa-times-circle'}`}></i>
+             </div>
+             <div>
+               <h4 className="text-lg font-black text-slate-900">{feedback.title}</h4>
+               <p className="text-slate-500 font-medium text-sm">{feedback.message}</p>
+             </div>
+           </div>
+        </div>
+      )}
     </div>
   );
 };

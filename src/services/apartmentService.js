@@ -71,6 +71,8 @@ export const mapApartment = (apartment) => {
     address: apartment.address || '',
     city: apartment.city || '',
     district: apartment.district || '',
+    latitude: apartment.latitude ? Number(apartment.latitude) : apartment.lat ? Number(apartment.lat) : null,
+    longitude: apartment.longitude ? Number(apartment.longitude) : apartment.lng ? Number(apartment.lng) : null,
     owner: createOwner(apartment),
     verified: Boolean(apartment.verified),
     status: normalizeStatus(apartment),
@@ -131,8 +133,8 @@ const normalizePayload = async (input, base = null) => {
     address: raw.address || '',
     city: raw.city || '',
     district: raw.district || '',
-    latitude: raw.latitude || null,
-    longitude: raw.longitude || null,
+    latitude: raw.latitude ? Number(raw.latitude) : null,
+    longitude: raw.longitude ? Number(raw.longitude) : null,
     ownerId: raw.ownerId || currentUser?.id || '',
   };
 };

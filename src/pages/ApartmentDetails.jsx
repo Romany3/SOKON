@@ -1,10 +1,10 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { Navbar } from '../components/Navbar';
-import { apartmentsAPI, bookingsAPI, chatAPI, reviewsAPI, authAPI, usersAPI } from '../services/api';
+import { apartmentsAPI, bookingsAPI, chatAPI, reviewsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useStoreVersion } from '../hooks/useStoreVersion';
-import { getApiErrorMessage } from '../services/apiClient';
+import { getApiErrorMessage, apiClient } from '../services/apiClient';
 import { AVATAR_SM_PLACEHOLDER } from '../utils/placeholders';
 
 export const ApartmentDetails = () => {
@@ -12,6 +12,7 @@ export const ApartmentDetails = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
   const storeVersion = useStoreVersion();
+  const mapSectionRef = useRef(null);
   
   const [apartment, setApartment] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -49,7 +50,6 @@ export const ApartmentDetails = () => {
   const isUserStudent = userRole === 'student' || userRole === 'client';
   const hasPhoneNumber = user?.phoneNumber || user?.phone;
 
-  // Step 6: Automatically calculate Total Price based on Months AND Number of People
   const bookingSummary = useMemo(() => {
     if (!bookingForm.startDate || !bookingForm.endDate || !apartment) return null;
     const start = new Date(bookingForm.startDate);
@@ -58,11 +58,7 @@ export const ApartmentDetails = () => {
     
     const diffTime = Math.abs(end - start);
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    // Calculate fractional months (assuming 30 days per month)
     const numMonths = diffDays / 30;
-    
-    // Total price formula: (Number of months) × (Monthly price) × (Number of people)
     const occupants = Number(bookingForm.requestedOccupants) || 1;
     const pricePerMonth = Number(apartment.price) || 0;
     const totalPrice = numMonths * pricePerMonth * occupants; 
@@ -143,8 +139,6 @@ export const ApartmentDetails = () => {
 
   const handleMessageOwner = async () => {
     if (!isAuthenticated) return navigate('/login');
-    
-    // SECURITY BLOCK: Owners cannot message owners
     if (isUserOwner) {
       alert('Owners are not allowed to message other owners');
       return;
@@ -232,20 +226,21 @@ export const ApartmentDetails = () => {
     }
   };
 
-  const openGoogleMaps = () => {
-    const latitude = apartment?.latitude ?? apartment?.lat;
-    const longitude = apartment?.longitude ?? apartment?.lng;
-    if (latitude && longitude) {
-      window.open(`https://www.google.com/maps?q=${latitude},${longitude}`, '_blank');
+  const scrollToMap = () => {
+    if (mapSectionRef.current) {
+      mapSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   };
 
   const images = apartment?.images || [];
   const availableSpots = Math.max(Number(apartment?.available_people ?? apartment?.max_people ?? 0) - Number(apartment?.occupiedCount || 0), 0);
-  const currentImage = images[selectedImageIndex] || images[0] || '';
-
-  // OWNER CHAT RESTRICTION: Fully hide if the current logged-in user is an owner
   const canShowChatButton = !user || userRole !== 'owner';
+
+  const apartmentLat = apartment?.latitude || apartment?.lat;
+  const apartmentLng = apartment?.longitude || apartment?.lng;
+  const mapEmbedUrl = (apartmentLat && apartmentLng) 
+    ? `https://maps.google.com/maps?q=${apartmentLat},${apartmentLng}&z=16&output=embed`
+    : null;
 
   if (loading) return (
     <div className="min-h-screen bg-white flex items-center justify-center">
@@ -269,8 +264,22 @@ export const ApartmentDetails = () => {
           </div>
         )}
 
-        <div className="mb-8">
-          <h1 className="text-3xl font-black text-slate-900 md:text-4xl">{apartment.title || apartment.name}</h1>
+        <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-black text-slate-900 md:text-4xl">{apartment.title || apartment.name}</h1>
+            <p className="mt-2 text-slate-500 font-medium flex items-center gap-2">
+              <i className="fas fa-location-dot text-primary"></i> {locationLabel}
+            </p>
+          </div>
+          {mapEmbedUrl && (
+            <button 
+              onClick={scrollToMap}
+              className="flex items-center gap-2 bg-white px-5 py-3 rounded-2xl font-bold text-slate-700 border border-slate-200 shadow-sm hover:bg-slate-50 transition"
+            >
+              <i className="fas fa-map-marked-alt text-primary"></i>
+              Show Apartment Location
+            </button>
+          )}
         </div>
 
         <div className="overflow-hidden rounded-[32px] bg-white shadow-xl border border-slate-100">
@@ -312,24 +321,20 @@ export const ApartmentDetails = () => {
               </div>
             )}
 
-            <div className="flex flex-col md:flex-row justify-between gap-6 border-b border-slate-50">
+            <div className="flex flex-col md:flex-row justify-between gap-6 border-b border-slate-50 pb-8">
                <div className="space-y-3">
-                  <p className="text-slate-500 font-medium flex items-center gap-2">
-                    <i className="fas fa-location-dot text-primary"></i> {locationLabel}
-                  </p>
                   <div className="flex flex-wrap gap-3">
-                    <Badge icon="fa-bed" text={`${apartment.bedrooms} Beds`} />
-                    <Badge icon="fa-bath" text={`${apartment.bathrooms} Bath`} />
-                    <Badge icon="fa-door-open" text={`${apartment.rooms} Rooms`} />
+                    <Badge icon="fa-bed" text={`${apartment.bedrooms || apartment.beds || 0} Beds`} />
+                    <Badge icon="fa-bath" text={`${apartment.bathrooms || 0} Bath`} />
+                    <Badge icon="fa-door-open" text={`${apartment.rooms || 0} Rooms`} />
                   </div>
                </div>
                <div className="bg-primary/5 p-5 rounded-2xl text-center min-w-[160px]">
                   <span className="block text-[10px] font-black uppercase text-slate-400 mb-1">Monthly Rent</span>
-                  <span className="text-3xl font-black text-primary">${apartment.price}</span>
+                  <span className="text-3xl font-black text-primary">{apartment.price} EGY</span>
                </div>
             </div>
 
-            {/* Verification Badge Section - Moved above grid/description */}
             <div className={`inline-flex items-center gap-2 rounded-2xl p-4 border w-full ${isVerified ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-amber-50 border-amber-100 text-amber-700'}`}>
               <i className={`fas ${isVerified ? 'fa-check-circle' : 'fa-exclamation-circle'}`}></i>
               <p className="text-sm font-bold">This apartment is {isVerified ? '' : 'not'} verified by Sokon administrator</p>
@@ -338,7 +343,7 @@ export const ApartmentDetails = () => {
             <div className="grid lg:grid-cols-2 gap-10">
               <div>
                 <h2 className="text-xl font-black text-slate-900 mb-4">Description</h2>
-                <p className="text-slate-600 leading-relaxed">{apartment.description_en || apartment.description}</p>
+                <p className="text-slate-600 leading-relaxed whitespace-pre-wrap">{apartment.description_en || apartment.description}</p>
               </div>
               <div className="space-y-6">
                 <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100 shadow-sm">
@@ -352,31 +357,33 @@ export const ApartmentDetails = () => {
                    </div>
                    <p className="mt-4 text-xs text-slate-400 font-medium italic">Available Spots: {apartment.available_people || availableSpots}</p>
                 </div>
-                
-                {/* Location Information Section */}
-                <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100 shadow-sm">
-                   <h3 className="font-black text-slate-900 mb-4 text-lg flex items-center gap-2">
-                     <i className="fas fa-map-location-dot text-primary"></i> Location Information
-                   </h3>
-                   <div className="space-y-4">
-                      <div>
-                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5">📍 Address</p>
-                        <p className="text-sm font-bold text-slate-900 mt-1">{apartment.address || 'Address not provided'}</p>
-                      </div>
-                      <div className="flex gap-10">
-                         <div>
-                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">District</p>
-                            <p className="text-sm font-bold text-slate-900 mt-1">{apartment.district || 'N/A'}</p>
-                         </div>
-                         <div>
-                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">City</p>
-                            <p className="text-sm font-bold text-slate-900 mt-1">{apartment.city || 'N/A'}</p>
-                         </div>
-                      </div>
-                   </div>
-                </div>
               </div>
             </div>
+
+            {/* Map Section */}
+            {mapEmbedUrl && (
+              <div ref={mapSectionRef} className="space-y-4">
+                <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                  <i className="fas fa-map-location-dot text-primary"></i>
+                  Property Location
+                </h2>
+                <div className="h-96 w-full rounded-[32px] overflow-hidden border border-slate-200 shadow-inner bg-slate-100">
+                  <iframe
+                    title="Apartment Location"
+                    width="100%"
+                    height="100%"
+                    frameBorder="0"
+                    style={{ border: 0 }}
+                    src={mapEmbedUrl}
+                    allowFullScreen
+                  ></iframe>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-slate-500 font-medium bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                  <i className="fas fa-circle-info text-primary"></i>
+                  Exact location coordinates: {apartmentLat}, {apartmentLng}
+                </div>
+              </div>
+            )}
 
             {apartment.owner && (
               <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100 flex items-center justify-between gap-4">
@@ -542,12 +549,5 @@ const SummaryRow = ({ label, value }) => (
   <div className="flex justify-between text-sm font-bold">
     <span className="text-slate-400">{label}</span>
     <span className="text-slate-900 truncate ml-4 text-right">{value}</span>
-  </div>
-);
-
-const InfoTile = ({ label, value }) => (
-  <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">{label}</p>
-    <p className="text-sm font-black text-slate-900">{value}</p>
   </div>
 );
