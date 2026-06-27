@@ -460,7 +460,7 @@ export const ApartmentDetails = () => {
           <div className="relative mt-16 max-w-5xl w-full h-full flex flex-col items-center justify-center p-4" onClick={e => e.stopPropagation()}>
             <img 
               src={images[selectedImageIndex]} 
-              className="max-h-[65vh] w-auto object-contain rounded-2xl shadow-2xl select-none" 
+              className="h-[75vh] w-auto object-contain rounded-2xl shadow-2xl select-none" 
               alt={`Apartment view ${selectedImageIndex + 1}`} 
             />
             <div className="mt-6 flex flex-col items-center gap-2">
