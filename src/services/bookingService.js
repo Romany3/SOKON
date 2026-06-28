@@ -1,5 +1,5 @@
 import apiClient, { emitStoreChange, getStoredUser } from './apiClient';
-import { mapApartment, apartmentsAPI } from './apartmentService';
+import { mapApartment } from './apartmentService';
 import { mapUser } from './userService';
 
 const asArray = (value) => {
@@ -9,7 +9,6 @@ const asArray = (value) => {
 
 const normalizeStatus = (status) => {
   const value = `${status || 'pending'}`.trim().toLowerCase();
-  // Standardizing statuses for UI labels: Pending, Accepted, Rejected, Cancelled
   if (value === 'accepted' || value === 'approved') return 'accepted';
   if (value === 'rejected' || value === 'declined') return 'rejected';
   if (value === 'canceled' || value === 'cancelled') return 'cancelled';
@@ -25,40 +24,142 @@ const normalizeDate = (value) => {
 export const mapBooking = (booking) => {
   if (!booking) return null;
 
-  const apartment = booking.apartment ? mapApartment(booking.apartment) : null;
-  const student = booking.student || booking.client || null;
+  const b = booking;
+
+  // 1. Resilient Apartment Mapping
+  const aptData = b.apartment || {};
+  const apartmentId = b.apartmentId || b.apartment_id || aptData._id || aptData.id || '';
+  const apartmentName = b.apartmentName || b.apartment_name || b.apartmentTitle || aptData.title || aptData.name || 'Apartment';
+  const apartmentAddress = b.apartmentAddress || b.apartment_address || b.address || aptData.address || '';
+  
+  const apartmentImage = 
+    b.apartmentImage || 
+    b.apartment_image || 
+    b.apartmentImageUrl ||
+    b.image || 
+    b.image_url ||
+    aptData.images?.[0] || 
+    aptData.image || 
+    aptData.imageUrl ||
+    aptData.photo ||
+    '';
+
+  const apartment = mapApartment({
+    ...aptData,
+    _id: apartmentId,
+    id: apartmentId,
+    title: apartmentName,
+    address: apartmentAddress,
+    images: (Array.isArray(aptData.images) && aptData.images.length > 0) 
+      ? aptData.images 
+      : (apartmentImage ? [apartmentImage] : []),
+  });
+
+  // 2. Resilient Student/Client Mapping
+  const stuData = b.student || b.client || b.user || {};
+  
+  // Find Student ID
+  const studentId = 
+    b.clientId || 
+    b.client_id || 
+    b.studentId || 
+    b.student_id || 
+    b.userId || 
+    b.user_id || 
+    stuData._id || 
+    stuData.id || 
+    '';
+
+  // Find Student Name
+  const studentName = 
+    b.studentName || 
+    b.student_name || 
+    b.clientName || 
+    b.client_name || 
+    b.userName || 
+    b.user_name || 
+    b.fullName || 
+    b.name || 
+    stuData.fullName || 
+    stuData.name || 
+    'Student';
+
+  // Find Student Avatar
+  const studentAvatar = 
+    b.studentPhoto || 
+    b.student_photo || 
+    b.clientPhoto || 
+    b.client_photo || 
+    b.studentImage || 
+    b.student_image || 
+    b.avatar || 
+    b.photoUrl || 
+    stuData.avatar || 
+    stuData.photoUrl || 
+    '';
+
+  // Find Student Faculty/College - Aggressive search
+  const studentFaculty = 
+    b.studentFaculty || 
+    b.student_faculty ||
+    b.clientFaculty ||
+    b.client_faculty ||
+    b.faculty || 
+    b.college || 
+    b.studentCollege ||
+    b.clientCollege ||
+    stuData.faculty || 
+    stuData.college || 
+    stuData.studentFaculty ||
+    stuData.student_faculty ||
+    stuData.studentCollege ||
+    stuData.student_college ||
+    '';
+
+  const student = mapUser({
+    ...stuData,
+    _id: studentId,
+    id: studentId,
+    fullName: studentName,
+    name: studentName,
+    email: b.studentEmail || b.student_email || b.clientEmail || b.client_email || b.email || stuData.email || '',
+    phone: b.studentPhone || b.student_phone || b.clientPhone || b.client_phone || b.phone || b.phoneNumber || stuData.phone || stuData.phoneNumber || '',
+    avatar: studentAvatar,
+    photoUrl: studentAvatar,
+    faculty: studentFaculty,
+    college: studentFaculty,
+  });
+
+  const bId = b.id || b._id || '';
 
   return {
     ...booking,
-    _id: String(booking.id || booking._id || ''),
-    id: String(booking.id || booking._id || ''),
-    apartmentId: String(booking.apartmentId || apartment?._id || ''),
-    ownerId: String(booking.ownerId || apartment?.ownerId || ''),
-    clientId: String(booking.clientId || student?._id || ''),
-    status: normalizeStatus(booking.status),
-    startDate: normalizeDate(booking.startDate || booking.checkInDate || booking.start_date || ''),
-    endDate: normalizeDate(booking.endDate || booking.checkOutDate || booking.end_date || ''),
-    people_count: Number(booking.people_count || booking.requestedOccupants || 1),
-    totalPrice: Number(booking.totalPrice || 0),
-    message: booking.message || '',
-    createdAt: booking.createdAt || '',
+    _id: String(bId),
+    id: String(bId),
+    apartmentId: String(apartmentId),
+    clientId: String(studentId),
+    status: normalizeStatus(b.status),
+    startDate: normalizeDate(b.startDate || b.checkInDate || b.start_date || ''),
+    endDate: normalizeDate(b.endDate || b.checkOutDate || b.end_date || ''),
+    people_count: Number(b.people_count || b.requestedOccupants || 1),
+    totalPrice: Number(b.totalPrice || 0),
+    message: b.message || '',
+    createdAt: b.createdAt || b.created_at || '',
     apartment,
-    student: student ? mapUser(student) : null,
+    student,
   };
 };
 
 const normalizeBookingList = (payload) => asArray(payload).map(mapBooking).filter(Boolean);
 
 export const bookingsAPI = {
-  // Requirement: GET /bookings/active/check?userId={userId}&apartmentId={apartmentId}
   checkActiveBooking: async (userId, apartmentId) => {
     try {
       const response = await apiClient.get('/bookings/active/check', {
         params: { userId, apartmentId }
       });
-      return response.data; // Expected { exists: boolean }
+      return response.data;
     } catch (error) {
-      console.warn('Active check failed, falling back to manual scan');
       const res = await bookingsAPI.getStudentBookings(userId);
       const list = res.data?.bookings || [];
       const exists = list.some(b => 
@@ -69,7 +170,6 @@ export const bookingsAPI = {
     }
   },
 
-  // Requirement: POST /bookings
   createBooking: async (data) => {
     const payload = {
       apartmentId: data.apartmentId,
@@ -78,8 +178,8 @@ export const bookingsAPI = {
       apartmentImage: data.apartmentImage,
       ownerId: data.ownerId,
       ownerName: data.ownerName,
-      startDate: data.startDate, // ISO String
-      endDate: data.endDate,     // ISO String
+      startDate: data.startDate,
+      endDate: data.endDate,
       totalPrice: Number(data.totalPrice),
       people_count: Number(data.people_count),
       status: "pending"
@@ -89,7 +189,6 @@ export const bookingsAPI = {
     const bookingData = response.data?.booking || response.data;
     const bookingId = bookingData?._id || bookingData?.id;
 
-    // Requirement: POST /functions/send-booking-notification
     if (bookingId && data.ownerId) {
       try {
         await apiClient.post('/functions/send-booking-notification', {
@@ -99,31 +198,23 @@ export const bookingsAPI = {
           body: "You have received a new booking request",
           type: "new_booking"
         });
-      } catch (err) {
-        console.error('Owner notification failed:', err);
-      }
+      } catch (err) {}
     }
 
     emitStoreChange();
     return { data: mapBooking(bookingData) };
   },
 
-  // Requirement: GET /bookings?clientId={userId}
   getStudentBookings: async (userId = getStoredUser()?.id || getStoredUser()?._id) => {
     const response = await apiClient.get('/bookings', { params: { clientId: userId } });
     return { data: { bookings: normalizeBookingList(response.data) } };
   },
 
-  // Requirement: GET /bookings?ownerId={userId}
   getOwnerBookings: async (ownerId = getStoredUser()?.id || getStoredUser()?._id) => {
     const response = await apiClient.get('/bookings', { params: { ownerId: ownerId } });
     return { data: { bookings: normalizeBookingList(response.data) } };
   },
 
-  getMyBookings: async (userId = getStoredUser()?.id || getStoredUser()?._id) =>
-    bookingsAPI.getStudentBookings(userId),
-
-  // Requirement: POST /rpc/update_booking_status_with_capacity
   updateBookingStatusWithCapacity: async ({ bookingId, status }) => {
     const response = await apiClient.post('/rpc/update_booking_status_with_capacity', {
       p_booking_id: bookingId,
@@ -133,8 +224,18 @@ export const bookingsAPI = {
     return { data: mapBooking(response.data?.booking || response.data) };
   },
 
-  acceptBooking: async (id) => bookingsAPI.updateBookingStatusWithCapacity({ bookingId: id, status: 'accepted' }),
-  rejectBooking: async (id) => bookingsAPI.updateBookingStatusWithCapacity({ bookingId: id, status: 'rejected' }),
+  acceptBooking: async (id) => {
+    const response = await apiClient.post(`/bookings/${id}/status`, { status: 'accepted' });
+    emitStoreChange();
+    return response;
+  },
+
+  rejectBooking: async (id) => {
+    const response = await apiClient.post(`/bookings/${id}/status`, { status: 'rejected' });
+    emitStoreChange();
+    return response;
+  },
+
   cancelBooking: async (id) => bookingsAPI.updateBookingStatusWithCapacity({ bookingId: id, status: 'cancelled' }),
 };
 

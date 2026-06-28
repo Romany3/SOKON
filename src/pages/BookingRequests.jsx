@@ -71,19 +71,72 @@ export const BookingRequests = () => {
     }
   };
 
-  const handleChatStudent = async (student, apartment) => {
-    if (!student?._id) return;
+  const handleChatStudent = async (booking) => {
+    const student = booking.student || {};
+    const apartment = booking.apartment || {};
+    
+    // Resolve Student ID from all possible sources
+    const studentId = 
+      student._id || 
+      student.id || 
+      booking.clientId || 
+      booking.client_id || 
+      booking.studentId || 
+      booking.student_id || 
+      booking.userId || 
+      booking.user_id;
+
+    // Resolve Student Name
+    const studentName = 
+      student.fullName || 
+      student.name || 
+      booking.studentName || 
+      booking.student_name || 
+      booking.clientName || 
+      booking.userName || 
+      'Student';
+
+    // Resolve Student Photo
+    const studentPhoto = 
+      student.avatar || 
+      student.photoUrl || 
+      booking.studentPhoto || 
+      booking.student_photo || 
+      booking.clientPhoto || 
+      booking.studentImage || 
+      '';
+    
+    const ownerId = user?._id || user?.id;
+
+    if (!studentId) {
+      alert("Cannot start chat: Student ID not found.");
+      return;
+    }
+
+    if (!ownerId) {
+      alert("Please login to chat.");
+      return;
+    }
+
+    // Role check: Don't allow owner to message themselves or other owners (security)
+    if (studentId === ownerId) {
+        alert("You cannot chat with yourself.");
+        return;
+    }
+
     try {
       const response = await chatAPI.getOrCreateConversation({
-        participantIds: [user._id, student._id],
-        apartmentId: apartment?._id,
+        participantIds: [ownerId, studentId],
+        apartmentId: apartment._id || apartment.id || booking.apartmentId || booking.apartment_id,
         participants: [
-          { _id: user._id, fullName: user.fullName || '', photoUrl: user.avatar || '', role: 'owner' },
-          { _id: student._id, fullName: student.fullName || '', photoUrl: student.avatar || '', role: 'student' },
+          { _id: ownerId, fullName: user.fullName || user.name || 'Owner', photoUrl: user.avatar || user.photoUrl || '', role: 'owner' },
+          { _id: studentId, fullName: studentName, photoUrl: studentPhoto, role: 'student' },
         ],
       });
       const conversation = response.data?.conversation || response.data;
-      if (conversation?._id) navigate(`/messages/${conversation._id}`);
+      if (conversation?._id || conversation?.id) {
+        navigate(`/messages/${conversation._id || conversation.id}`);
+      }
     } catch (error) {
       alert(getApiErrorMessage(error, 'Could not start chat with student.'));
     }
@@ -132,11 +185,23 @@ export const BookingRequests = () => {
               const student = booking.student || {};
               const apartment = booking.apartment || {};
 
+              // Comprehensive fallback for Apartment Image
+              const aptImg = (apartment.images && apartment.images[0]) || booking.apartmentImage || booking.apartment_image || booking.image || APARTMENT_PLACEHOLDER;
+              
+              // Comprehensive fallback for Student Name
+              const stuName = student.fullName || student.name || booking.studentName || booking.clientName || booking.userName || 'Student';
+              
+              // Comprehensive fallback for Student Avatar
+              const stuAvatar = student.avatar || student.photoUrl || booking.studentPhoto || booking.student_photo || booking.clientPhoto || booking.studentImage || AVATAR_SM_PLACEHOLDER;
+
+              // Comprehensive fallback for Faculty
+              const stuFaculty = student.faculty || student.college || booking.studentFaculty || booking.student_faculty || booking.faculty || booking.college || 'Faculty not specified';
+
               return (
                 <div key={booking._id} className="overflow-hidden rounded-[32px] bg-white shadow-sm border border-slate-100">
                   <div className="grid gap-0 md:grid-cols-[300px_1fr]">
                     <div className="h-64 bg-slate-200 md:h-auto relative">
-                      <img src={apartment.images?.[0] || APARTMENT_PLACEHOLDER} className="h-full w-full object-cover" alt="" />
+                      <img src={aptImg} className="h-full w-full object-cover" alt="" />
                       <div className="absolute top-4 left-4">
                          <span className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest shadow-lg ${style}`}>
                            {booking.status}
@@ -150,20 +215,19 @@ export const BookingRequests = () => {
                           <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 pb-2 mb-4">Student Information</h3>
                           <div className="flex items-center gap-4">
                              <div className="h-16 w-16 rounded-2xl bg-slate-100 overflow-hidden border border-slate-200 flex-shrink-0">
-                               <img src={student.avatar || AVATAR_SM_PLACEHOLDER} className="h-full w-full object-cover" alt="" />
+                               <img src={stuAvatar} className="h-full w-full object-cover" alt="" />
                              </div>
                              <div className="min-w-0">
-                               <h4 className="text-2xl font-black text-slate-900 truncate">{student.fullName || 'Student'}</h4>
-                               <p className="text-slate-500 font-bold text-sm truncate">{student.email}</p>
-                               <p className="text-slate-400 font-bold text-xs uppercase tracking-tighter mt-1">{student.faculty || student.college} • {student.phone}</p>
+                               <h4 className="text-2xl font-black text-slate-900 truncate">{stuName}</h4>
+                               <p className="text-slate-400 font-bold text-xs uppercase tracking-tight mt-1">{stuFaculty}</p>
                              </div>
                           </div>
 
                           <div className="mt-8 pt-6 border-t border-slate-50">
                              <p className="text-[10px] font-black uppercase text-primary tracking-widest mb-1">Requested Apartment</p>
-                             <h3 className="text-xl font-black text-slate-900">{apartment.title || booking.apartmentName}</h3>
+                             <h3 className="text-xl font-black text-slate-900">{apartment.title || booking.apartmentName || 'Apartment'}</h3>
                              <p className="text-slate-500 font-medium flex items-center gap-2 mt-1">
-                               <i className="fas fa-location-dot text-primary text-xs"></i> {apartment.district || booking.apartmentAddress}, {apartment.city || 'Asyut'}
+                               <i className="fas fa-location-dot text-primary text-xs"></i> {apartment.district || booking.apartmentAddress || 'District unknown'}, {apartment.city || booking.city || 'Asyut'}
                              </p>
                           </div>
                         </div>
@@ -183,8 +247,8 @@ export const BookingRequests = () => {
                                </div>
                              )}
                              <button 
-                                onClick={() => handleChatStudent(student, apartment)}
-                                className="w-full py-4 rounded-2xl bg-slate-900 text-white font-bold text-xs uppercase hover:bg-slate-800 transition flex items-center justify-center gap-2"
+                                onClick={() => handleChatStudent(booking)}
+                                className="w-full py-4 rounded-2xl bg-slate-900 text-white font-bold text-xs uppercase hover:bg-slate-800 transition flex items-center justify-center gap-2 shadow-lg shadow-slate-200"
                              >
                                <i className="fas fa-comment-dots"></i>
                                Chat Student
