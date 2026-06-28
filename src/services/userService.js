@@ -181,10 +181,15 @@ export const updateCurrentUser = async (userId, data = {}) => {
 };
 
 export const deleteCurrentUser = async (password) => {
-  // The backend expects DELETE /auth/account with { password } in the request body
   const config = password ? { data: { password } } : {};
   const response = await apiClient.delete('/auth/account', config);
   clearStoredSession();
+  return response.data;
+};
+
+export const deleteUserById = async (userId) => {
+  const response = await apiClient.delete(`/users/${userId}`);
+  emitStoreChange();
   return response.data;
 };
 
@@ -194,6 +199,7 @@ export const usersAPI = {
   getUserById,
   updateUser: updateCurrentUser,
   deleteUser: deleteCurrentUser,
+  deleteUserById,
   updateProfile: async (data = {}) => {
     const currentUser = getStoredUser();
     return updateCurrentUser(currentUser?.id || currentUser?._id, data);

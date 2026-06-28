@@ -37,7 +37,6 @@ import { AdminUsers } from './pages/AdminUsers';
 import { AdminApartments } from './pages/AdminApartments';
 import { AdminUserDetails } from './pages/AdminUserDetails';
 import { AdminApartmentDetails } from './pages/AdminApartmentDetails';
-import { AdminBroadcast } from './pages/AdminBroadcast';
 import { AdminMessages } from './pages/AdminMessages';
 import { AdminLogs } from './pages/AdminLogs';
 
@@ -66,8 +65,6 @@ function AppShell() {
     };
   }, [authLoading]);
 
-  // Admin-Only Experience: If logged in as admin, redirect any non-admin path to dashboard
-  // (except for login/register/auth related pages)
   if (isAuthenticated && user?.role === 'admin' && !isAdminPath && !isAuthPage) {
     return <Navigate to="/admin/dashboard" replace />;
   }
@@ -83,7 +80,6 @@ function AppShell() {
         <Route path="/forgot-password/verify" element={<VerifyEmail />} />
         <Route path="/forgot-password/reset" element={<ResetPassword />} />
 
-        {/* Public browsing routes - Hidden from Admin via the Navigate above */}
         <Route path="/apartments" element={<AllApartments />} />
         <Route path="/locations" element={<AllLocations />} />
         <Route path="/universities" element={<Universities />} />
@@ -246,14 +242,6 @@ function AppShell() {
           }
         />
         <Route
-          path="/admin/broadcast"
-          element={
-            <AdminRoute>
-              <AdminBroadcast />
-            </AdminRoute>
-          }
-        />
-        <Route
           path="/admin/logs"
           element={
             <AdminRoute>
@@ -263,7 +251,6 @@ function AppShell() {
         />
         <Route path="/admin/access-denied" element={<AccessDenied />} />
 
-        {/* Catch-all route */}
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>

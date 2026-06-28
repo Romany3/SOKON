@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { AdminNavbar } from '../components/AdminNavbar';
 import { usersAPI, bookingsAPI } from '../services/api';
 import { AVATAR_SM_PLACEHOLDER } from '../utils/placeholders';
+import { getApiErrorMessage } from '../services/apiClient';
 
 export const AdminUserDetails = () => {
   const { userId } = useParams();
@@ -10,25 +11,42 @@ export const AdminUserDetails = () => {
   const [user, setUser] = useState(null);
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const [userRes, bookingsRes] = await Promise.all([
+        usersAPI.getUserById(userId),
+        bookingsAPI.getStudentBookings(userId),
+      ]);
+      setUser(userRes.data);
+      setBookings(bookingsRes.data?.bookings || []);
+    } catch (err) {
+      console.error('Error fetching user details:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const [userRes, bookingsRes] = await Promise.all([
-          usersAPI.getUserById(userId),
-          bookingsAPI.getStudentBookings(userId),
-        ]);
-        setUser(userRes.data);
-        setBookings(bookingsRes.data?.bookings || []);
-      } catch (err) {
-        console.error('Error fetching user details:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchData();
   }, [userId]);
+
+  const handleDeleteUser = async () => {
+    setDeleteLoading(true);
+    try {
+      await usersAPI.deleteUserById(userId);
+      alert('Account deleted successfully');
+      navigate('/admin/users');
+    } catch (err) {
+      alert(getApiErrorMessage(err, 'Failed to delete account'));
+    } finally {
+      setDeleteLoading(false);
+      setIsDeleteModalOpen(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -88,8 +106,11 @@ export const AdminUserDetails = () => {
                  >
                    Send Private Message
                  </button>
-                 <button className="w-full py-4 rounded-2xl bg-amber-50 text-amber-600 font-bold hover:bg-amber-100 transition">
-                   Suspend Account
+                 <button 
+                  onClick={() => setIsDeleteModalOpen(true)}
+                  className="w-full py-4 rounded-2xl bg-red-50 text-red-600 font-bold hover:bg-red-100 transition"
+                 >
+                   Delete Account
                  </button>
               </div>
             </div>
@@ -99,7 +120,7 @@ export const AdminUserDetails = () => {
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-slate-500 font-medium">Joined Date</span>
-                  <span className="text-sm font-bold text-slate-900">{new Date(user.createdAt).toLocaleDateString()}</span>
+                  <span className="text-sm font-bold text-slate-900">{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-slate-500 font-medium">Account Status</span>
@@ -130,7 +151,7 @@ export const AdminUserDetails = () => {
               </div>
             </div>
 
-            {/* Booking History */}
+            {/* History Section */}
             <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm p-8 md:p-10">
               <h2 className="text-xl font-black text-slate-900 mb-8">
                 {user.role === 'student' ? 'Rental History' : 'Managed Listings'}
@@ -148,15 +169,15 @@ export const AdminUserDetails = () => {
                         <img src={booking.apartment?.images?.[0] || AVATAR_SM_PLACEHOLDER} alt="" className="h-full w-full object-cover" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h4 className="font-bold text-slate-900 truncate">{booking.apartment?.title}</h4>
+                        <h4 className="font-bold text-slate-900 truncate">{booking.apartment?.title || 'Unknown Apartment'}</h4>
                         <p className="text-xs text-slate-500 mt-1">
-                          {new Date(booking.checkInDate).toLocaleDateString()} — {new Date(booking.checkOutDate).toLocaleDateString()}
+                          {booking.startDate || 'N/A'} — {booking.endDate || 'N/A'}
                         </p>
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-black text-slate-900">${booking.totalPrice}</p>
                         <span className={`text-[10px] font-black uppercase tracking-tighter mt-1 inline-block ${
-                          booking.status === 'approved' ? 'text-emerald-500' : 'text-amber-500'
+                          booking.status === 'accepted' ? 'text-emerald-500' : 'text-amber-500'
                         }`}>
                           {booking.status}
                         </span>
@@ -169,6 +190,43 @@ export const AdminUserDetails = () => {
           </div>
         </div>
       </main>
+
+      {/* Delete User Confirmation Modal */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 px-4 py-6 backdrop-blur-sm">
+          <div className="relative w-full max-w-md rounded-[32px] bg-white p-8 shadow-2xl">
+            <div className="h-16 w-16 rounded-2xl flex items-center justify-center text-2xl mb-6 bg-red-50 text-red-600">
+              <i className="fas fa-trash-alt"></i>
+            </div>
+            
+            <h3 className="text-2xl font-black text-slate-900 mb-2">Delete User Account</h3>
+            <p className="text-slate-500 mb-8 leading-relaxed">
+              Are you sure you want to permanently delete <span className="font-bold text-slate-900">{user.fullName}</span>'s account? 
+              This action is irreversible and will remove all their data from the platform.
+            </p>
+
+            <div className="flex gap-4">
+              <button
+                type="button"
+                onClick={() => setIsDeleteModalOpen(false)}
+                className="flex-1 py-4 rounded-2xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 transition"
+                disabled={deleteLoading}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteUser}
+                disabled={deleteLoading}
+                className="flex-1 py-4 rounded-2xl bg-red-600 text-white font-bold hover:bg-red-700 transition shadow-lg shadow-red-200 flex items-center justify-center gap-2"
+              >
+                {deleteLoading && <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
+                Confirm Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

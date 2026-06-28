@@ -118,7 +118,7 @@ export const AdminDashboard = () => {
         ) : (
           <>
             {/* Stats Grid - No Hover Animations (hover:-translate-y-1 and hover:shadow-xl removed) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 mb-12">
+            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 mb-12">
               <StatCard
                 title="Total Users"
                 value={stats.totalUsers}
@@ -153,13 +153,6 @@ export const AdminDashboard = () => {
                 icon="fas fa-check-circle"
                 color="bg-emerald-600"
                 onClick={() => navigate('/admin/apartments?status=verified')}
-              />
-              <StatCard
-                title="Active Bookings"
-                value={stats.activeBookings}
-                icon="fas fa-calendar-check"
-                color="bg-rose-500"
-                onClick={() => {}}
               />
             </div>
 
