@@ -201,7 +201,7 @@ export const Profile = () => {
             {!isEditing ? (
               <>
                 <h2 className="text-2xl font-black text-slate-900 mb-8">Account Information</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-8">
+                <div className="grid grid-cols-1 gap-y-8">
                   <InfoItem label="Full Name" value={user?.fullName} icon="fa-user" />
                   <InfoItem label="Email Address" value={user?.email} icon="fa-envelope" />
                   <InfoItem label="Phone Number" value={user?.phone || user?.phoneNumber || "Not provided"} icon="fa-phone" />
@@ -214,7 +214,7 @@ export const Profile = () => {
               <form onSubmit={handleSubmit} className="space-y-6">
                 <h2 className="text-2xl font-black text-slate-900 mb-8">Edit Profile</h2>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 gap-6">
                   <div className="col-span-full">
                     <label className="block mb-2 text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Full Name</label>
                     <input
@@ -252,7 +252,7 @@ export const Profile = () => {
                   )}
                   
                   <div className="opacity-60">
-                    <label className="block mb-2 text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Email (Private)</label>
+                    <label className="block mb-2 text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Email</label>
                     <input
                       value={formData.email}
                       disabled

@@ -26,22 +26,24 @@ export const mapBooking = (booking) => {
 
   const b = booking;
 
-  // 1. Resilient Apartment Mapping
+  // 1. Resilient Apartment Information Extraction
   const aptData = b.apartment || {};
   const apartmentId = b.apartmentId || b.apartment_id || aptData._id || aptData.id || '';
   const apartmentName = b.apartmentName || b.apartment_name || b.apartmentTitle || aptData.title || aptData.name || 'Apartment';
   const apartmentAddress = b.apartmentAddress || b.apartment_address || b.address || aptData.address || '';
   
-  // Try to find a valid image URL from all possible fields
+  // Try to find a valid image URL from all possible fields on the booking and its nested apartment object
   const apartmentImage = 
     b.apartmentImage || 
     b.apartment_image || 
     b.apartmentImageUrl ||
+    b.apartment_image_url ||
     b.image || 
     b.image_url ||
-    aptData.images?.[0] || 
+    (Array.isArray(aptData.images) && aptData.images[0]) || 
     aptData.image || 
     aptData.imageUrl ||
+    aptData.image_url ||
     aptData.photo ||
     b.apartment_photo ||
     '';
@@ -100,7 +102,7 @@ export const mapBooking = (booking) => {
     stuData.photoUrl || 
     '';
 
-  // Find Student Faculty/College - Extremely comprehensive search
+  // Find Student Faculty/College
   const studentFaculty = 
     b.studentFaculty || 
     b.student_faculty ||

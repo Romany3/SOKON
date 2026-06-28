@@ -123,8 +123,8 @@ export const MyBookings = () => {
                   <div className="grid gap-0 md:grid-cols-[280px_1fr]">
                     <div className="h-64 bg-slate-200 md:h-full relative overflow-hidden">
                       <img
-                        src={apartment.images?.[0] || APARTMENT_PLACEHOLDER}
-                        alt={apartment.title}
+                        src={apartment.images?.[0] || booking.apartmentImage || booking.apartment_image || APARTMENT_PLACEHOLDER}
+                        alt={apartment.title || booking.apartmentName || 'Apartment'}
                         className="h-full w-full object-cover transition transform hover:scale-105 duration-700"
                       />
                       <div className="absolute top-4 left-4">
