@@ -32,6 +32,7 @@ export const mapBooking = (booking) => {
   const apartmentName = b.apartmentName || b.apartment_name || b.apartmentTitle || aptData.title || aptData.name || 'Apartment';
   const apartmentAddress = b.apartmentAddress || b.apartment_address || b.address || aptData.address || '';
   
+  // Try to find a valid image URL from all possible fields
   const apartmentImage = 
     b.apartmentImage || 
     b.apartment_image || 
@@ -42,6 +43,7 @@ export const mapBooking = (booking) => {
     aptData.image || 
     aptData.imageUrl ||
     aptData.photo ||
+    b.apartment_photo ||
     '';
 
   const apartment = mapApartment({
@@ -58,7 +60,7 @@ export const mapBooking = (booking) => {
   // 2. Resilient Student/Client Mapping
   const stuData = b.student || b.client || b.user || {};
   
-  // Find Student ID
+  // Find Student ID from every possible field
   const studentId = 
     b.clientId || 
     b.client_id || 
@@ -98,7 +100,7 @@ export const mapBooking = (booking) => {
     stuData.photoUrl || 
     '';
 
-  // Find Student Faculty/College - Aggressive search
+  // Find Student Faculty/College - Extremely comprehensive search
   const studentFaculty = 
     b.studentFaculty || 
     b.student_faculty ||
@@ -106,8 +108,8 @@ export const mapBooking = (booking) => {
     b.client_faculty ||
     b.faculty || 
     b.college || 
-    b.studentCollege ||
-    b.clientCollege ||
+    b.student_college ||
+    b.client_college ||
     stuData.faculty || 
     stuData.college || 
     stuData.studentFaculty ||
