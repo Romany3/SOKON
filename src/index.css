@@ -43,7 +43,7 @@ body {
 
 .custom-scroll::-webkit-scrollbar-track {
   margin-top: 10px;
-  margin-bottom: 10px; /* 1% فوق + 1% تحت = أقل 2% من طول الـ div */
+  margin-bottom: 10px;
   border-radius: 10px;
 }
 

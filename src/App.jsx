@@ -5,6 +5,7 @@ import { useAuth } from './context/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AdminRoute } from './components/AdminRoute';
 import { Loading } from './components/Loading/Loading';
+import { AIChatbot } from './components/AIChatbot';
 
 // Pages
 import { Login } from './pages/Login';
@@ -65,6 +66,8 @@ function AppShell() {
     };
   }, [authLoading]);
 
+  // Admin-Only Experience: If logged in as admin, redirect any non-admin path to dashboard
+  // (except for login/register/auth related pages)
   if (isAuthenticated && user?.role === 'admin' && !isAdminPath && !isAuthPage) {
     return <Navigate to="/admin/dashboard" replace />;
   }
@@ -80,6 +83,7 @@ function AppShell() {
         <Route path="/forgot-password/verify" element={<VerifyEmail />} />
         <Route path="/forgot-password/reset" element={<ResetPassword />} />
 
+        {/* Public browsing routes - Hidden from Admin via the Navigate above */}
         <Route path="/apartments" element={<AllApartments />} />
         <Route path="/locations" element={<AllLocations />} />
         <Route path="/universities" element={<Universities />} />
@@ -251,11 +255,15 @@ function AppShell() {
         />
         <Route path="/admin/access-denied" element={<AccessDenied />} />
 
+        {/* Catch-all route */}
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
 
       {!isAuthPage && !isAdminPath && <Loading visible={showSplash} />}
+      
+      {/* AI Chatbot - Integrated into the platform */}
+      {!isAdminPath && <AIChatbot />}
     </>
   );
 }

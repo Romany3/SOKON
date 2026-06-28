@@ -1,13 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { notificationsAPI } from '../services/api';
 import { AVATAR_SM_PLACEHOLDER } from '../utils/placeholders';
 
 export const AdminNavbar = () => {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      if (!user?._id) return;
+      try {
+        const res = await notificationsAPI.getNotifications(user._id);
+        const list = res.data?.notifications || [];
+        setUnreadCount(list.filter(n => !n.isRead).length);
+      } catch (err) {
+        console.error('Error fetching admin notifications:', err);
+      }
+    };
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000); // Check every 30s
+    return () => clearInterval(interval);
+  }, [user?._id]);
 
   const handleLogout = async () => {
     await logout();
@@ -19,6 +38,7 @@ export const AdminNavbar = () => {
     { name: 'Users', path: '/admin/users', icon: 'fas fa-users' },
     { name: 'Apartments', path: '/admin/apartments', icon: 'fas fa-building' },
     { name: 'Messages', path: '/admin/messages', icon: 'fas fa-comments' },
+    { name: 'Broadcast', path: '/admin/broadcast', icon: 'fas fa-bullhorn' },
     { name: 'Audit Logs', path: '/admin/logs', icon: 'fas fa-clipboard-list' },
   ];
 
@@ -63,8 +83,13 @@ export const AdminNavbar = () => {
 
             {/* Right Section */}
             <div className="flex items-center gap-2 sm:gap-4">
-              <div className="flex items-center gap-3 p-1.5 rounded-xl hover:bg-slate-50 transition">
-                <div className="h-10 w-10 rounded-xl overflow-hidden shadow-sm border border-slate-100 bg-slate-100">
+              {/* Profile Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+                  className="flex items-center gap-3 p-1.5 rounded-xl hover:bg-slate-50 transition"
+                >
+                  <div className="h-10 w-10 rounded-xl overflow-hidden shadow-sm border border-slate-100 bg-slate-100">
                     <img
                       src={AVATAR_SM_PLACEHOLDER}
                       alt="Admin"
@@ -75,6 +100,22 @@ export const AdminNavbar = () => {
                     <p className="text-sm font-black text-slate-900 leading-none">Admin</p>
                     <p className="text-[10px] font-bold text-slate-400 uppercase mt-1 tracking-wider">Administrator</p>
                   </div>
+                  <i className={`fas fa-chevron-down text-[10px] text-slate-300 transition-transform ${profileMenuOpen ? 'rotate-180' : ''}`}></i>
+                </button>
+
+                {profileMenuOpen && (
+                  <div className="absolute right-0 w-64 bg-white rounded-[24px] shadow-2xl border border-slate-100 z-50 animate-in fade-in slide-in-from-top-2 duration-200">                    
+                    <button
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-3 px-5 py-3 rounded-[24px] text-sm font-bold text-red-600 hover:bg-red-50 transition text-left"
+                    >
+                      <div className="h-8 w-8 rounded-lg bg-red-50 flex items-center justify-center text-red-400">
+                        <i className="fas fa-sign-out-alt text-xs"></i>
+                      </div>
+                      Sign Out
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -126,18 +167,6 @@ export const AdminNavbar = () => {
                 {link.name}
               </Link>
             ))}
-          </div>
-
-          <div className="p-4 border-t border-slate-50">
-            <button
-              onClick={handleLogout}
-              className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl text-sm font-bold text-red-600 hover:bg-red-50 transition"
-            >
-              <div className="h-8 w-8 rounded-lg bg-red-50 flex items-center justify-center text-red-400">
-                <i className="fas fa-sign-out-alt"></i>
-              </div>
-              Sign Out Account
-            </button>
           </div>
         </aside>
       </div>
