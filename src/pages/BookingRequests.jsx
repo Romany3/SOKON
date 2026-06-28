@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Navbar } from '../components/Navbar';
-import { bookingsAPI, chatAPI } from '../services/api';
+import { bookingsAPI, chatAPI, usersAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useStoreVersion } from '../hooks/useStoreVersion';
 import { getApiErrorMessage } from '../services/apiClient';
@@ -31,7 +31,39 @@ export const BookingRequests = () => {
         const response = await bookingsAPI.getOwnerBookings();
         const data = response.data?.bookings || response.data || [];
         const list = Array.isArray(data) ? data : [];
-        setBookings([...list].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+        
+        // Enrich student data with faculty by fetching full user details for each booking
+        const studentCache = {};
+        const enrichedList = await Promise.all(list.map(async (booking) => {
+          const studentId = booking.clientId || booking.student?._id || booking.student?.id;
+          
+          if (studentId) {
+             try {
+               if (!studentCache[studentId]) {
+                 studentCache[studentId] = usersAPI.getUserById(studentId)
+                   .then(res => res.data)
+                   .catch(() => null);
+               }
+               const studentDetails = await studentCache[studentId];
+               if (studentDetails) {
+                 return {
+                   ...booking,
+                   student: {
+                     ...booking.student,
+                     ...studentDetails,
+                     // Ensure faculty is explicitly prioritized
+                     faculty: studentDetails.faculty || studentDetails.college || booking.student?.faculty || ''
+                   }
+                 };
+               }
+             } catch (e) {
+               console.error("Failed to enrich student data", studentId, e);
+             }
+          }
+          return booking;
+        }));
+
+        setBookings(enrichedList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
       } catch (error) {
         console.error('Error fetching booking requests:', error);
       } finally {
@@ -65,7 +97,17 @@ export const BookingRequests = () => {
       const response = await bookingsAPI.getOwnerBookings();
       const data = response.data?.bookings || response.data || [];
       const list = Array.isArray(data) ? data : [];
-      setBookings([...list].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+      
+      // Preserve enriched data
+      const updatedList = list.map(nb => {
+        const existing = bookings.find(ob => ob._id === nb._id);
+        if (existing && existing.student) {
+          return { ...nb, student: { ...nb.student, ...existing.student } };
+        }
+        return nb;
+      });
+
+      setBookings(updatedList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
     } catch (error) {
       alert(getApiErrorMessage(error, 'Failed to update status'));
     }
@@ -74,69 +116,27 @@ export const BookingRequests = () => {
   const handleChatStudent = async (booking) => {
     const student = booking.student || {};
     const apartment = booking.apartment || {};
-    
-    // Resolve Student ID from all possible sources
-    const studentId = 
-      student._id || 
-      student.id || 
-      booking.clientId || 
-      booking.client_id || 
-      booking.studentId || 
-      booking.student_id || 
-      booking.userId || 
-      booking.user_id;
-
-    // Resolve Student Name
-    const studentName = 
-      student.fullName || 
-      student.name || 
-      booking.studentName || 
-      booking.student_name || 
-      booking.clientName || 
-      booking.userName || 
-      'Student';
-
-    // Resolve Student Photo
-    const studentPhoto = 
-      student.avatar || 
-      student.photoUrl || 
-      booking.studentPhoto || 
-      booking.student_photo || 
-      booking.clientPhoto || 
-      booking.studentImage || 
-      '';
-    
+    const studentId = student._id || student.id || booking.clientId;
+    const studentName = student.fullName || student.name || 'Student';
+    const studentPhoto = student.avatar || student.photoUrl || '';
     const ownerId = user?._id || user?.id;
 
-    if (!studentId) {
-      alert("Cannot start chat: Student ID not found.");
+    if (!studentId || !ownerId) {
+      alert("Cannot start chat: Missing information.");
       return;
-    }
-
-    if (!ownerId) {
-      alert("Please login to chat.");
-      return;
-    }
-
-    // Role check: Don't allow owner to message themselves or other owners (security)
-    if (studentId === ownerId) {
-        alert("You cannot chat with yourself.");
-        return;
     }
 
     try {
       const response = await chatAPI.getOrCreateConversation({
         participantIds: [ownerId, studentId],
-        apartmentId: apartment._id || apartment.id || booking.apartmentId || booking.apartment_id,
+        apartmentId: apartment._id || booking.apartmentId,
         participants: [
-          { _id: ownerId, fullName: user.fullName || user.name || 'Owner', photoUrl: user.avatar || user.photoUrl || '', role: 'owner' },
+          { _id: ownerId, fullName: user.fullName || 'Owner', photoUrl: user.avatar || '', role: 'owner' },
           { _id: studentId, fullName: studentName, photoUrl: studentPhoto, role: 'student' },
         ],
       });
       const conversation = response.data?.conversation || response.data;
-      if (conversation?._id || conversation?.id) {
-        navigate(`/messages/${conversation._id || conversation.id}`);
-      }
+      if (conversation?._id) navigate(`/messages/${conversation._id}`);
     } catch (error) {
       alert(getApiErrorMessage(error, 'Could not start chat with student.'));
     }
@@ -185,17 +185,12 @@ export const BookingRequests = () => {
               const student = booking.student || {};
               const apartment = booking.apartment || {};
 
-              // Comprehensive fallback for Apartment Image
-              const aptImg = (apartment.images && apartment.images[0]) || booking.apartmentImage || booking.apartment_image || booking.image || APARTMENT_PLACEHOLDER;
+              const aptImg = apartment.images?.[0] || booking.apartmentImage || APARTMENT_PLACEHOLDER;
+              const stuName = student.fullName || student.name || 'Student';
+              const stuAvatar = student.avatar || AVATAR_SM_PLACEHOLDER;
               
-              // Comprehensive fallback for Student Name
-              const stuName = student.fullName || student.name || booking.studentName || booking.clientName || booking.userName || 'Student';
-              
-              // Comprehensive fallback for Student Avatar
-              const stuAvatar = student.avatar || student.photoUrl || booking.studentPhoto || booking.student_photo || booking.clientPhoto || booking.studentImage || AVATAR_SM_PLACEHOLDER;
-
-              // Comprehensive fallback for Faculty
-              const stuFaculty = student.faculty || student.college || booking.studentFaculty || booking.student_faculty || booking.faculty || booking.college || 'Faculty not specified';
+              // Faculty display logic
+              const stuFaculty = student.faculty || student.college || 'Faculty not specified';
 
               return (
                 <div key={booking._id} className="overflow-hidden rounded-[32px] bg-white shadow-sm border border-slate-100">
@@ -219,7 +214,7 @@ export const BookingRequests = () => {
                              </div>
                              <div className="min-w-0">
                                <h4 className="text-2xl font-black text-slate-900 truncate">{stuName}</h4>
-                               <p className="text-slate-400 font-bold text-xs uppercase tracking-tight mt-1">{stuFaculty}</p>
+                               <p className="text-slate-500 font-bold text-sm mt-1">{stuFaculty}</p>
                              </div>
                           </div>
 
@@ -227,7 +222,7 @@ export const BookingRequests = () => {
                              <p className="text-[10px] font-black uppercase text-primary tracking-widest mb-1">Requested Apartment</p>
                              <h3 className="text-xl font-black text-slate-900">{apartment.title || booking.apartmentName || 'Apartment'}</h3>
                              <p className="text-slate-500 font-medium flex items-center gap-2 mt-1">
-                               <i className="fas fa-location-dot text-primary text-xs"></i> {apartment.district || booking.apartmentAddress || 'District unknown'}, {apartment.city || booking.city || 'Asyut'}
+                               <i className="fas fa-location-dot text-primary text-xs"></i> {apartment.district || booking.apartmentAddress || 'District unknown'}, {apartment.city || 'Asyut'}
                              </p>
                           </div>
                         </div>

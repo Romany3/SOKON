@@ -53,6 +53,10 @@ export const mapApartment = (apartment) => {
   const maxPeople = asNumber(apartment.max_people ?? apartment.maxPeople ?? apartment.capacity, 0);
   const availablePeople = asNumber(apartment.available_people ?? apartment.availablePeople, maxPeople);
 
+  // Robust coordinate extraction
+  const lat = apartment.lat !== undefined ? apartment.lat : apartment.latitude;
+  const lng = apartment.lng !== undefined ? apartment.lng : apartment.longitude;
+
   return {
     ...apartment,
     _id: apartment.id || apartment._id || '',
@@ -71,8 +75,8 @@ export const mapApartment = (apartment) => {
     address: apartment.address || '',
     city: apartment.city || '',
     district: apartment.district || '',
-    latitude: apartment.latitude ? Number(apartment.latitude) : apartment.lat ? Number(apartment.lat) : null,
-    longitude: apartment.longitude ? Number(apartment.longitude) : apartment.lng ? Number(apartment.lng) : null,
+    lat: lat !== undefined && lat !== null ? Number(lat) : null,
+    lng: lng !== undefined && lng !== null ? Number(lng) : null,
     owner: createOwner(apartment),
     verified: Boolean(apartment.verified),
     status: normalizeStatus(apartment),
@@ -118,6 +122,10 @@ const normalizePayload = async (input, base = null) => {
     videoUrl = await uploadFile(videoSource, folder);
   }
 
+  // Ensure lat/lng are prioritized for payload
+  const lat = raw.lat !== undefined ? raw.lat : raw.latitude;
+  const lng = raw.lng !== undefined ? raw.lng : raw.longitude;
+
   return {
     name: raw.title || raw.name || '',
     description: raw.description_en || raw.description || '',
@@ -133,8 +141,8 @@ const normalizePayload = async (input, base = null) => {
     address: raw.address || '',
     city: raw.city || '',
     district: raw.district || '',
-    latitude: raw.latitude ? Number(raw.latitude) : null,
-    longitude: raw.longitude ? Number(raw.longitude) : null,
+    lat: lat !== undefined && lat !== null ? Number(lat) : (base?.lat || null),
+    lng: lng !== undefined && lng !== null ? Number(lng) : (base?.lng || null),
     ownerId: raw.ownerId || currentUser?.id || '',
   };
 };

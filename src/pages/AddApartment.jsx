@@ -18,8 +18,8 @@ export const AddApartment = () => {
     rooms: '',
     bathrooms: '',
     floor: '',
-    latitude: '',
-    longitude: '',
+    lat: null,
+    lng: null,
     maxPeople: 4,
     images: [],
     video: null,
@@ -67,8 +67,8 @@ export const AddApartment = () => {
   const handleLocationSelect = (coordinates) => {
     setFormData((current) => ({
       ...current,
-      latitude: coordinates.lat.toFixed(6),
-      longitude: coordinates.lng.toFixed(6),
+      lat: coordinates.lat,
+      lng: coordinates.lng,
     }));
     if (errors.location) {
       setErrors(prev => {
@@ -97,7 +97,7 @@ export const AddApartment = () => {
     if (!formData.rooms) newErrors.rooms = 'Living rooms count is required';
     if (!formData.bathrooms) newErrors.bathrooms = 'Bathrooms count is required';
     if (!formData.floor && formData.floor !== 0) newErrors.floor = 'Floor number is required';
-    if (!formData.latitude || !formData.longitude) newErrors.location = 'Please pick a location on the map';
+    if (formData.lat === null || formData.lng === null) newErrors.location = 'Please select apartment location from map';
     if (formData.images.length === 0) newErrors.images = 'At least one image is required';
     if (!formData.video) newErrors.video = 'Apartment video is required';
 
@@ -126,8 +126,8 @@ export const AddApartment = () => {
       form.append('rooms', Number(formData.rooms));
       form.append('bathrooms', Number(formData.bathrooms));
       form.append('floor', Number(formData.floor));
-      form.append('latitude', formData.latitude);
-      form.append('longitude', formData.longitude);
+      form.append('lat', formData.lat);
+      form.append('lng', formData.lng);
       form.append('max_people', Number(formData.maxPeople));
       form.append('available_people', Number(formData.maxPeople));
 
@@ -258,10 +258,10 @@ export const AddApartment = () => {
             <div className={`mt-8 rounded-3xl border-2 border-dashed ${errors.location ? 'border-red-300 bg-red-50' : 'border-primary/20 bg-slate-50'} p-6`}>
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900">Map Location *</h3>
+                  <h3 className="text-lg font-bold text-slate-900">Select apartment location from map *</h3>
                   <p className="mt-1 text-sm text-slate-500">
-                    {formData.latitude && formData.longitude
-                      ? `Coordinates: ${formData.latitude}, ${formData.longitude}`
+                    {formData.lat && formData.lng
+                      ? `Selected Coordinates: ${formData.lat.toFixed(6)}, ${formData.lng.toFixed(6)}`
                       : 'Please select the exact apartment location on the map.'}
                   </p>
                 </div>
@@ -272,10 +272,23 @@ export const AddApartment = () => {
                   className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-3 font-bold text-white transition hover:opacity-90 shadow-md shadow-primary/20"
                 >
                   <i className="fas fa-map-marker-alt"></i>
-                  Open Map Picker
+                  {formData.lat ? 'Change Location' : 'Open Map Picker'}
                 </button>
               </div>
               {errors.location && <p className="mt-2 text-sm text-red-500 font-medium">{errors.location}</p>}
+              
+              {formData.lat && formData.lng && (
+                <div className="mt-4 grid grid-cols-2 gap-4">
+                  <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Latitude</p>
+                    <p className="text-sm font-bold text-slate-900">{formData.lat.toFixed(6)}</p>
+                  </div>
+                  <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Longitude</p>
+                    <p className="text-sm font-bold text-slate-900">{formData.lng.toFixed(6)}</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -444,8 +457,10 @@ export const AddApartment = () => {
                     type="file"
                     accept="video/*"
                     onChange={(e) => {
-                       setFormData({ ...formData, video: e.target.files[0] });
-                       if (errors.video) setErrors(prev => ({...prev, video: null}));
+                       if (e.target.files[0]) {
+                         setFormData({ ...formData, video: e.target.files[0] });
+                         if (errors.video) setErrors(prev => ({...prev, video: null}));
+                       }
                     }}
                     className="hidden"
                     id="video"
@@ -501,10 +516,10 @@ export const AddApartment = () => {
         <LocationPickerModal
           open={isLocationPickerOpen}
           initialCoordinates={
-            formData.latitude && formData.longitude
+            formData.lat && formData.lng
               ? {
-                  lat: Number(formData.latitude),
-                  lng: Number(formData.longitude),
+                  lat: Number(formData.lat),
+                  lng: Number(formData.lng),
                 }
               : undefined
           }
