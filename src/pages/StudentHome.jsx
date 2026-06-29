@@ -147,12 +147,12 @@ export const StudentHome = () => {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div>
                 <label className="block mb-1 text-xs font-bold text-slate-500 uppercase ml-2">Min Price</label>
                 <input
                   type="number"
-                  placeholder="e.g. 1000"
+                  placeholder="0"
                   value={filters.minPrice}
                   onChange={(event) => setFilters((current) => ({ ...current, minPrice: event.target.value }))}
                   className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/20"
@@ -162,19 +162,9 @@ export const StudentHome = () => {
                 <label className="block mb-1 text-xs font-bold text-slate-500 uppercase ml-2">Max Price</label>
                 <input
                   type="number"
-                  placeholder="e.g. 5000"
+                  placeholder="Any"
                   value={filters.maxPrice}
                   onChange={(event) => setFilters((current) => ({ ...current, maxPrice: event.target.value }))}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/20"
-                />
-              </div>
-              <div>
-                <label className="block mb-1 text-xs font-bold text-slate-500 uppercase ml-2">Beds</label>
-                <input
-                  type="number"
-                  placeholder="e.g. 2"
-                  value={filters.beds}
-                  onChange={(event) => setFilters((current) => ({ ...current, beds: event.target.value }))}
                   className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/20"
                 />
               </div>
@@ -201,9 +191,9 @@ export const StudentHome = () => {
           <button
             type="button"
             onClick={() => navigate('/apartments')}
-            className="rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+            className="rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
           >
-            See More
+            View All
           </button>
         </div>
 
@@ -225,7 +215,7 @@ export const StudentHome = () => {
         )}
       </div>
 
-      <UniversitySection allApartments={allApartments} />
+      <UniversitySection allApartments={allApartments} limit={6} />
 
       <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="mb-6 flex items-center justify-between gap-4">
@@ -249,7 +239,7 @@ export const StudentHome = () => {
               <button
                 key={location.name}
                 type="button"
-                onClick={() => navigate(`/search?district=${encodeURIComponent(location.name)}`)}
+                onClick={() => navigate(`/locations?location=${encodeURIComponent(location.name)}`)}
                 className="group rounded-[28px] border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
               >
                 <div className="flex items-center justify-between gap-4">

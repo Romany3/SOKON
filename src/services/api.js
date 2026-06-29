@@ -32,3 +32,4 @@ export { bookingsAPI, mapBooking } from './bookingService';
 export { reviewsAPI, mapReview } from './reviewService';
 export { notificationsAPI, mapNotification } from './notificationService';
 export { chatAPI, mapChat, mapMessage } from './chatService';
+export { aiAPI } from './aiService';

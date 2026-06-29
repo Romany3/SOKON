@@ -150,9 +150,14 @@ export const LocationPickerModal = ({
       x: centerWorld.x - rect.width / 2,
       y: centerWorld.y - rect.height / 2,
     };
+    
+    // Support touch events as well
+    const clientX = event.clientX || (event.touches && event.touches[0].clientX);
+    const clientY = event.clientY || (event.touches && event.touches[0].clientY);
+
     const worldPoint = {
-      x: topLeft.x + (event.clientX - rect.left),
-      y: topLeft.y + (event.clientY - rect.top),
+      x: topLeft.x + (clientX - rect.left),
+      y: topLeft.y + (clientY - rect.top),
     };
     const nextCoordinates = worldToLatLng(worldPoint, zoom);
     const normalized = {
@@ -177,8 +182,8 @@ export const LocationPickerModal = ({
 
   return (
     <div className="fixed inset-0 z-[1050] flex items-center justify-center bg-slate-950/70 px-4 py-6 backdrop-blur-sm">
-      <div className="w-full max-w-4xl overflow-hidden rounded-[2rem] border border-white/20 bg-white shadow-2xl">
-        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+      <div className="w-full max-w-4xl h-[95vh] overflow-auto custom-scroll rounded-[1rem] border border-white/20 bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5 bg-white z-10">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-400">
               Location picker
@@ -251,7 +256,7 @@ export const LocationPickerModal = ({
               ))}
 
               <div
-                className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full"
+                className="pointer-events-none absolute -translate-x-1/2 -translate-y-full"
                 style={markerPosition}
               >
                 <div className="flex flex-col items-center">

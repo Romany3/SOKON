@@ -1,6 +1,6 @@
 import apiClient, { emitStoreChange, getStoredUser } from './apiClient';
 import { mapApartment } from './apartmentService';
-import { mapUser } from './userService';
+import { mapUser, usersAPI } from './userService';
 
 const asArray = (value) => {
   if (Array.isArray(value)) {
@@ -22,11 +22,16 @@ const toUrlArray = (value) => {
     return [];
   }
 
-  if (Array.isArray(value)) {
-    return value.filter(Boolean).map((item) => `${item}`);
-  }
-
-  return [`${value}`];
+  const items = Array.isArray(value) ? value : [value];
+  return items
+    .map((item) => {
+      if (typeof item === 'string') return item;
+      if (item && typeof item === 'object') {
+        return item.url || item.secure_url || item.imageUrl || item.fileUrl || '';
+      }
+      return '';
+    })
+    .filter(Boolean);
 };
 
 const extractImageUrlsFromText = (text = '') => {
@@ -121,9 +126,21 @@ export const mapChat = (chat) => {
     null;
 
   const apartment = chat.apartment || chat.relatedApartment || chat.apartmentData || null;
-  const lastMessage = chat.lastMessage || chat.last_message || null;
-  const fallbackLastMessage = typeof lastMessage === 'string' ? { message: lastMessage } : lastMessage;
-  const lastMessageSender = fallbackLastMessage?.sender ? mapUser(fallbackLastMessage.sender) : null;
+  
+  // Robust Last Message Detection
+  let rawLastMessage = chat.lastMessage || chat.last_message || chat.message || null;
+  
+  if (!rawLastMessage && Array.isArray(chat.messages) && chat.messages.length > 0) {
+    rawLastMessage = chat.messages[chat.messages.length - 1];
+  }
+  
+  // If still nothing, check for text fields that might be the last message content
+  if (!rawLastMessage && (chat.lastMessageText || chat.last_text)) {
+    rawLastMessage = { text: chat.lastMessageText || chat.last_text, createdAt: chat.updatedAt || chat.lastMessageAt };
+  }
+
+  const fallbackLastMessage = typeof rawLastMessage === 'string' ? { message: rawLastMessage } : rawLastMessage;
+  const lastMessageMapped = fallbackLastMessage ? mapMessage(fallbackLastMessage) : null;
 
   return {
     ...chat,
@@ -132,14 +149,14 @@ export const mapChat = (chat) => {
     participants,
     otherParticipant:
       otherParticipant ||
-      lastMessageSender ||
+      lastMessageMapped?.sender ||
       (chat.otherParticipant ? mapUser(chat.otherParticipant) : null) ||
       (chat.other_participant ? mapUser(chat.other_participant) : null) ||
       null,
     apartment: apartment ? mapApartment(apartment) : null,
     unreadCount: chat.unreadCount || chat.unread_count || 0,
-    lastMessage: fallbackLastMessage ? mapMessage(fallbackLastMessage) : null,
-    updatedAt: chat.updatedAt || chat.updated_at || chat.lastMessageAt || '',
+    lastMessage: lastMessageMapped,
+    updatedAt: chat.updatedAt || chat.updated_at || chat.lastMessageAt || lastMessageMapped?.createdAt || '',
     messages: Array.isArray(chat.messages) ? chat.messages.map(mapMessage).filter(Boolean) : [],
   };
 };
@@ -172,6 +189,9 @@ const uploadChatImages = async (files = [], folder = 'chats') => {
 
   for (const file of files) {
     if (!(file instanceof File) && !(file instanceof Blob)) {
+      if (typeof file === 'string' && file.startsWith('http')) {
+        urls.push(file);
+      }
       continue;
     }
 
@@ -179,14 +199,18 @@ const uploadChatImages = async (files = [], folder = 'chats') => {
     formData.append('file', file);
     formData.append('folder', folder);
 
-    const response = await apiClient.post('/storage/apartment', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    try {
+      const response = await apiClient.post('/storage/apartment', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
 
-    const data = response.data || {};
-    const url = data.secure_url || data.url || data.imageUrl || data.fileUrl || '';
-    if (url) {
-      urls.push(url);
+      const data = response.data || {};
+      const url = data.secure_url || data.url || data.imageUrl || data.fileUrl || '';
+      if (url) {
+        urls.push(url);
+      }
+    } catch (err) {
+      console.error('Error uploading chat image:', err);
     }
   }
 
@@ -196,7 +220,8 @@ const uploadChatImages = async (files = [], folder = 'chats') => {
 export const chatAPI = {
   getChats: async (userId = getSessionUserId()) => {
     const response = await apiClient.get('/chats', { params: { userId } });
-    return { data: { chats: normalizeChatList(response.data), conversations: normalizeChatList(response.data) } };
+    const normalized = normalizeChatList(response.data);
+    return { data: { chats: normalized, conversations: normalized } };
   },
 
   getConversations: async (userId) => chatAPI.getChats(userId),
@@ -244,7 +269,24 @@ export const chatAPI = {
   },
 
   getOrCreateConversation: async ({ participantIds = [], apartmentId, participants = [] } = {}) => {
-    // 1. Check if a conversation already exists between these two users
+    // 1. Role Validation (Security Rule)
+    const currentUser = getStoredUser();
+    const otherParticipantId = participantIds.find(id => id !== currentUser?._id);
+    
+    // Check if both are owners
+    if (currentUser?.role === 'owner') {
+      const targetUserRes = await usersAPI.getUserById(otherParticipantId).catch(() => null);
+      const targetUser = targetUserRes?.data || participants.find(p => p._id === otherParticipantId);
+      
+      if (targetUser?.role === 'owner') {
+        return { 
+          success: false, 
+          message: "Owners are not allowed to message other owners" 
+        };
+      }
+    }
+
+    // 2. Check if a conversation already exists between these two users
     const response = await chatAPI.getChats();
     const chats = response.data?.chats || response.data?.conversations || [];
     const existingChat = findExistingChat(chats, participantIds);
@@ -253,7 +295,7 @@ export const chatAPI = {
       return { data: { conversation: existingChat } };
     }
 
-    // 2. Build displayNames / displayPhotos from provided participant metadata
+    // 3. Build displayNames / displayPhotos from provided participant metadata
     const displayNames = {};
     const displayPhotos = {};
     participants.forEach((p) => {
@@ -264,7 +306,7 @@ export const chatAPI = {
       }
     });
 
-    // 3. Generate a deterministic chat ID: sorted participant IDs joined by '_'
+    // 4. Generate a deterministic chat ID: sorted participant IDs joined by '_'
     const chatId = [...participantIds].map((id) => `${id}`).sort().join('_');
 
     const createResponse = await apiClient.post('/chats', {
@@ -278,7 +320,7 @@ export const chatAPI = {
     });
 
     emitStoreChange();
-    return { data: { conversation: mapChat(createResponse.data?.chat || createResponse.data?.data?.chat || createResponse.data) } };
+    return { data: mapChat(createResponse.data?.chat || createResponse.data?.data?.chat || createResponse.data) };
   },
 
   sendMessage: async (chatId, payload = {}) => {

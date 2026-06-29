@@ -3,7 +3,9 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import { AuthProvider } from './context/AuthContext';
 import { useAuth } from './context/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { AdminRoute } from './components/AdminRoute';
 import { Loading } from './components/Loading/Loading';
+import { AIChatbot } from './components/AIChatbot';
 
 // Pages
 import { Login } from './pages/Login';
@@ -28,11 +30,23 @@ import { AllApartments } from './pages/AllApartments';
 import { AllLocations } from './pages/AllLocations';
 import { Universities } from './pages/Universities';
 import { RoleSelection } from './pages/RoleSelection';
+import { AccessDenied } from './pages/AccessDenied';
+
+// Admin Pages
+import { AdminDashboard } from './pages/AdminDashboard';
+import { AdminUsers } from './pages/AdminUsers';
+import { AdminApartments } from './pages/AdminApartments';
+import { AdminUserDetails } from './pages/AdminUserDetails';
+import { AdminApartmentDetails } from './pages/AdminApartmentDetails';
+import { AdminMessages } from './pages/AdminMessages';
+import { AdminLogs } from './pages/AdminLogs';
 
 function AppShell() {
-  const { loading: authLoading } = useAuth();
+  const { loading: authLoading, user, isAuthenticated } = useAuth();
   const { pathname } = useLocation();
-  const isAuthPage = pathname === '/login' || pathname === '/register' || pathname === '/auth/callback';
+  
+  const isAuthPage = pathname === '/login' || pathname === '/register' || pathname === '/auth/callback' || pathname.startsWith('/forgot-password');
+  const isAdminPath = pathname.startsWith('/admin');
   const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
@@ -52,6 +66,14 @@ function AppShell() {
     };
   }, [authLoading]);
 
+  // Admin-Only Experience: If logged in as admin, redirect any non-admin path to dashboard
+  if (isAuthenticated && user?.role === 'admin' && !isAdminPath && !isAuthPage) {
+    return <Navigate to="/admin/dashboard" replace />;
+  }
+
+  // Determine if chatbot should be hidden
+  const isChatbotHidden = isAdminPath || pathname === '/login' || pathname === '/register' || pathname.startsWith('/forgot-password');
+
   return (
     <>
       <Routes>
@@ -63,7 +85,6 @@ function AppShell() {
         <Route path="/forgot-password/verify" element={<VerifyEmail />} />
         <Route path="/forgot-password/reset" element={<ResetPassword />} />
 
-        {/* Public browsing routes */}
         <Route path="/apartments" element={<AllApartments />} />
         <Route path="/locations" element={<AllLocations />} />
         <Route path="/universities" element={<Universities />} />
@@ -176,12 +197,74 @@ function AppShell() {
           }
         />
 
+        {/* Admin Routes */}
+        <Route
+          path="/admin/dashboard"
+          element={
+            <AdminRoute>
+              <AdminDashboard />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            <AdminRoute>
+              <AdminUsers />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/users/:userId"
+          element={
+            <AdminRoute>
+              <AdminUserDetails />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/apartments"
+          element={
+            <AdminRoute>
+              <AdminApartments />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/apartments/:id"
+          element={
+            <AdminRoute>
+              <AdminApartmentDetails />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/messages"
+          element={
+            <AdminRoute>
+              <AdminMessages />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/logs"
+          element={
+            <AdminRoute>
+              <AdminLogs />
+            </AdminRoute>
+          }
+        />
+        <Route path="/admin/access-denied" element={<AccessDenied />} />
+
         {/* Catch-all route */}
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
 
-      {!isAuthPage && <Loading visible={showSplash} />}
+      {!isAuthPage && !isAdminPath && <Loading visible={showSplash} />}
+      
+      {/* AI Chatbot - Integrated into the platform */}
+      {!isChatbotHidden && <AIChatbot />}
     </>
   );
 }

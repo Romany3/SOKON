@@ -188,12 +188,19 @@ export const deleteCurrentUser = async (password) => {
   return response.data;
 };
 
+export const deleteUserById = async (userId) => {
+  const response = await apiClient.delete(`/users/${userId}`);
+  emitStoreChange();
+  return response.data;
+};
+
 export const usersAPI = {
   getMe: getCurrentUser,
   getUsers,
   getUserById,
   updateUser: updateCurrentUser,
   deleteUser: deleteCurrentUser,
+  deleteUserById,
   updateProfile: async (data = {}) => {
     const currentUser = getStoredUser();
     return updateCurrentUser(currentUser?.id || currentUser?._id, data);

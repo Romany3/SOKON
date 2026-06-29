@@ -1,221 +1,254 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Navbar } from '../components/Navbar';
-import { bookingsAPI } from '../services/api';
+import { bookingsAPI, chatAPI, usersAPI } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { useStoreVersion } from '../hooks/useStoreVersion';
-import { APARTMENT_PLACEHOLDER } from '../utils/placeholders';
+import { getApiErrorMessage } from '../services/apiClient';
+import { APARTMENT_PLACEHOLDER, AVATAR_SM_PLACEHOLDER } from '../utils/placeholders';
 
 const statusStyles = {
   pending: 'bg-amber-100 text-amber-700',
+  accepted: 'bg-emerald-100 text-emerald-700',
   approved: 'bg-emerald-100 text-emerald-700',
+  rejected: 'bg-rose-100 text-rose-700',
   declined: 'bg-rose-100 text-rose-700',
   cancelled: 'bg-slate-100 text-slate-600',
-  completed: 'bg-blue-100 text-blue-700',
 };
 
 export const BookingRequests = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const storeVersion = useStoreVersion();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [feedback, setFeedback] = useState({ show: false, title: '', message: '', type: '' });
 
   useEffect(() => {
     const loadRequests = async () => {
       setLoading(true);
-
       try {
         const response = await bookingsAPI.getOwnerBookings();
-        const data = response.data;
-        setBookings(Array.isArray(data) ? data : (data?.bookings || []));
+        const data = response.data?.bookings || response.data || [];
+        const list = Array.isArray(data) ? data : [];
+        
+        // Enrich student data with faculty by fetching full user details for each booking
+        const studentCache = {};
+        const enrichedList = await Promise.all(list.map(async (booking) => {
+          const studentId = booking.clientId || booking.student?._id || booking.student?.id;
+          
+          if (studentId) {
+             try {
+               if (!studentCache[studentId]) {
+                 studentCache[studentId] = usersAPI.getUserById(studentId)
+                   .then(res => res.data)
+                   .catch(() => null);
+               }
+               const studentDetails = await studentCache[studentId];
+               if (studentDetails) {
+                 return {
+                   ...booking,
+                   student: {
+                     ...booking.student,
+                     ...studentDetails,
+                     // Ensure faculty is explicitly prioritized
+                     faculty: studentDetails.faculty || studentDetails.college || booking.student?.faculty || ''
+                   }
+                 };
+               }
+             } catch (e) {
+               console.error("Failed to enrich student data", studentId, e);
+             }
+          }
+          return booking;
+        }));
+
+        setBookings(enrichedList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
       } catch (error) {
         console.error('Error fetching booking requests:', error);
       } finally {
         setLoading(false);
       }
     };
-
     loadRequests();
   }, [storeVersion]);
 
   const totals = useMemo(() => ({
     total: bookings.length,
-    pending: bookings.filter((booking) => booking.status === 'pending').length,
-    approved: bookings.filter((booking) => booking.status === 'approved').length,
+    pending: bookings.filter((b) => b.status === 'pending').length,
+    approved: bookings.filter((b) => b.status === 'accepted' || b.status === 'approved').length,
   }), [bookings]);
 
-  const updateBookingStatus = async (id, action) => {
-    try {
-      if (action === 'approved') {
-        await bookingsAPI.acceptBooking(id);
-      } else if (action === 'declined') {
-        await bookingsAPI.rejectBooking(id);
-      }
+  const showFeedback = (title, message, type) => {
+    setFeedback({ show: true, title, message, type });
+    setTimeout(() => setFeedback({ show: false, title: '', message: '', type: '' }), 3000);
+  };
 
-      // Refresh the list immediately to reflect status & capacity updates
+  const handleUpdateStatus = async (id, status) => {
+    try {
+      if (status === 'accepted') {
+        await bookingsAPI.acceptBooking(id);
+        showFeedback('Booking Approved', 'Booking request approved successfully', 'success');
+      } else if (status === 'rejected') {
+        await bookingsAPI.rejectBooking(id);
+        showFeedback('Booking Declined', 'Booking request declined successfully', 'error');
+      }
+      
       const response = await bookingsAPI.getOwnerBookings();
-      const data = response.data;
-      setBookings(Array.isArray(data) ? data : (data?.bookings || []));
+      const data = response.data?.bookings || response.data || [];
+      const list = Array.isArray(data) ? data : [];
+      
+      // Preserve enriched data
+      const updatedList = list.map(nb => {
+        const existing = bookings.find(ob => ob._id === nb._id);
+        if (existing && existing.student) {
+          return { ...nb, student: { ...nb.student, ...existing.student } };
+        }
+        return nb;
+      });
+
+      setBookings(updatedList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
     } catch (error) {
-      console.error('Error updating booking request:', error);
-      alert(error?.response?.data?.message || error?.message || 'Failed to update booking status');
+      alert(getApiErrorMessage(error, 'Failed to update status'));
+    }
+  };
+
+  const handleChatStudent = async (booking) => {
+    const student = booking.student || {};
+    const apartment = booking.apartment || {};
+    const studentId = student._id || student.id || booking.clientId;
+    const studentName = student.fullName || student.name || 'Student';
+    const studentPhoto = student.avatar || student.photoUrl || '';
+    const ownerId = user?._id || user?.id;
+
+    if (!studentId || !ownerId) {
+      alert("Cannot start chat: Missing information.");
+      return;
+    }
+
+    try {
+      const response = await chatAPI.getOrCreateConversation({
+        participantIds: [ownerId, studentId],
+        apartmentId: apartment._id || booking.apartmentId,
+        participants: [
+          { _id: ownerId, fullName: user.fullName || 'Owner', photoUrl: user.avatar || '', role: 'owner' },
+          { _id: studentId, fullName: studentName, photoUrl: studentPhoto, role: 'student' },
+        ],
+      });
+      const conversation = response.data?.conversation || response.data;
+      if (conversation?._id) navigate(`/messages/${conversation._id}`);
+    } catch (error) {
+      alert(getApiErrorMessage(error, 'Could not start chat with student.'));
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#f6f7fb]">
+    <div className="min-h-screen bg-[#f8fafc]">
       <Navbar />
 
       <div className="px-4 pt-8">
-        <div className="mx-auto max-w-7xl rounded-[32px] border border-slate-200 bg-white px-6 py-8 shadow-[0_24px_80px_rgba(15,23,42,0.08)] md:px-8">
+        <div className="mx-auto max-w-7xl rounded-[32px] border border-slate-200 bg-white px-8 py-10 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
             <div>
-              <div className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600">
-                Owner workspace
+              <div className="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-primary">
+                Management Console
               </div>
-              <h1 className="mt-4 text-4xl font-black tracking-tight text-slate-900">
-                Booking Requests
-              </h1>
-              <p className="mt-2 max-w-2xl text-slate-600">
-                Review requests and approve or reject them from one place.
-              </p>
+              <h1 className="text-4xl font-black text-slate-900 mt-4">Booking Requests</h1>
+              <p className="text-slate-500 font-medium text-lg mt-2">Manage incoming rental applications for your units.</p>
             </div>
-
-            <button
-              type="button"
-              onClick={() => navigate('/my-apartment')}
-              className="rounded-full bg-slate-900 px-6 py-3 font-semibold text-white transition hover:bg-slate-800"
-            >
-              My apartments
+            <button onClick={() => navigate('/my-apartment')} className="rounded-2xl bg-slate-900 px-6 py-4 font-bold text-white transition hover:bg-slate-800">
+               View My Units
             </button>
           </div>
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 py-8">
+      <div className="mx-auto max-w-7xl px-4 py-10">
         <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-          <div className="rounded-[24px] bg-white p-6 shadow-sm">
-            <p className="text-sm font-semibold text-slate-500">Total Requests</p>
-            <p className="mt-2 text-4xl font-black text-slate-900">{totals.total}</p>
-          </div>
-          <div className="rounded-[24px] bg-white p-6 shadow-sm">
-            <p className="text-sm font-semibold text-slate-500">Pending Requests</p>
-            <p className="mt-2 text-4xl font-black text-amber-600">{totals.pending}</p>
-          </div>
-          <div className="rounded-[24px] bg-white p-6 shadow-sm">
-            <p className="text-sm font-semibold text-slate-500">Approved</p>
-            <p className="mt-2 text-4xl font-black text-emerald-600">{totals.approved}</p>
-          </div>
+          <StatCard label="Total Received" value={totals.total} color="text-slate-900" />
+          <StatCard label="Pending" value={totals.pending} color="text-amber-600" />
+          <StatCard label="Approved" value={totals.approved} color="text-emerald-600" />
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 pb-8">
-        <h2 className="mb-6 text-2xl font-black text-slate-900">Student Requests</h2>
-
+      <div className="mx-auto max-w-7xl px-4 pb-20">
         {loading ? (
-          <div className="rounded-[28px] bg-white py-16 text-center text-slate-500 shadow-sm">
-            Loading booking requests...
+          <div className="space-y-6">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="h-64 bg-white rounded-[32px] animate-pulse border border-slate-100 shadow-sm"></div>
+            ))}
           </div>
         ) : bookings.length > 0 ? (
           <div className="space-y-6">
             {bookings.map((booking) => {
-              const statusStyle = statusStyles[booking.status] || statusStyles.pending;
+              const style = statusStyles[booking.status] || statusStyles.pending;
+              const student = booking.student || {};
+              const apartment = booking.apartment || {};
+
+              const aptImg = apartment.images?.[0] || booking.apartmentImage || APARTMENT_PLACEHOLDER;
+              const stuName = student.fullName || student.name || 'Student';
+              const stuAvatar = student.avatar || AVATAR_SM_PLACEHOLDER;
+              
+              // Faculty display logic
+              const stuFaculty = student.faculty || student.college || 'Faculty not specified';
 
               return (
-                <div key={booking._id} className="overflow-hidden rounded-[28px] bg-white shadow-sm">
-                  <div className="grid gap-0 md:grid-cols-[260px_1fr]">
-                    <div className="h-56 bg-slate-200 md:h-full">
-                      <img
-                        src={booking.apartment?.images?.[0] || APARTMENT_PLACEHOLDER}
-                        alt={booking.apartment?.title || booking.apartment?.name}
-                        className="h-full w-full object-cover"
-                      />
+                <div key={booking._id} className="overflow-hidden rounded-[32px] bg-white shadow-sm border border-slate-100">
+                  <div className="grid gap-0 md:grid-cols-[300px_1fr]">
+                    <div className="h-64 bg-slate-200 md:h-auto relative">
+                      <img src={aptImg} className="h-full w-full object-cover" alt="" />
+                      <div className="absolute top-4 left-4">
+                         <span className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest shadow-lg ${style}`}>
+                           {booking.status}
+                         </span>
+                      </div>
                     </div>
 
-                    <div className="p-6">
-                      <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-                        <div className="max-w-3xl">
-                          <div className="flex flex-wrap items-center gap-3">
-                            <h3 className="text-2xl font-black text-slate-900">
-                              {booking.student?.fullName}
-                            </h3>
-                            <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${statusStyle}`}>
-                              {booking.status}
-                            </span>
+                    <div className="p-8 flex flex-col justify-between">
+                      <div className="flex flex-col lg:flex-row gap-8 justify-between">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 pb-2 mb-4">Student Information</h3>
+                          <div className="flex items-center gap-4">
+                             <div className="h-16 w-16 rounded-2xl bg-slate-100 overflow-hidden border border-slate-200 flex-shrink-0">
+                               <img src={stuAvatar} className="h-full w-full object-cover" alt="" />
+                             </div>
+                             <div className="min-w-0">
+                               <h4 className="text-2xl font-black text-slate-900 truncate">{stuName}</h4>
+                               <p className="text-slate-500 font-bold text-sm mt-1">{stuFaculty}</p>
+                             </div>
                           </div>
 
-                          <p className="mt-2 text-slate-500">
-                            {booking.student?.faculty} - {booking.student?.university}
-                          </p>
-                          <p className="mt-1 text-sm text-slate-500">
-                            <i className="fas fa-phone mr-2 text-[#245999]"></i>
-                            {booking.student?.phone}
-                          </p>
-
-                          <h4 className="mt-5 text-xl font-black text-slate-900">
-                            {booking.apartment?.title || booking.apartment?.name}
-                          </h4>
-                          <p className="mt-2 text-slate-500">
-                            <i className="fas fa-location-dot mr-2 text-[#245999]"></i>
-                            {booking.apartment?.district}, {booking.apartment?.city}
-                          </p>
-                          <p className="mt-3 max-w-2xl text-slate-600">{booking.message}</p>
-
-                          <div className="mt-5 grid gap-3 text-sm text-slate-600 md:grid-cols-2 xl:grid-cols-4">
-                            <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                              <span className="block text-xs font-semibold uppercase tracking-wide text-slate-400">Check in</span>
-                              <span className="mt-1 block font-semibold text-slate-900">{booking.checkInDate}</span>
-                            </div>
-                            <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                              <span className="block text-xs font-semibold uppercase tracking-wide text-slate-400">Check out</span>
-                              <span className="mt-1 block font-semibold text-slate-900">{booking.checkOutDate}</span>
-                            </div>
-                            <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                              <span className="block text-xs font-semibold uppercase tracking-wide text-slate-400">Requested occupants</span>
-                              <span className="mt-1 block font-semibold text-slate-900">{booking.requestedOccupants || 1}</span>
-                            </div>
-                            <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                              <span className="block text-xs font-semibold uppercase tracking-wide text-slate-400">Apartment price</span>
-                              <span className="mt-1 block font-semibold text-slate-900">${booking.apartment?.price}/mo</span>
-                            </div>
+                          <div className="mt-8 pt-6 border-t border-slate-50">
+                             <p className="text-[10px] font-black uppercase text-primary tracking-widest mb-1">Requested Apartment</p>
+                             <h3 className="text-xl font-black text-slate-900">{apartment.title || booking.apartmentName || 'Apartment'}</h3>
+                             <p className="text-slate-500 font-medium flex items-center gap-2 mt-1">
+                               <i className="fas fa-location-dot text-primary text-xs"></i> {apartment.district || booking.apartmentAddress || 'District unknown'}, {apartment.city || 'Asyut'}
+                             </p>
                           </div>
                         </div>
 
-                        <div className="min-w-[180px]">
-                          <div className="rounded-2xl bg-slate-50 px-4 py-3 text-right">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Submitted</p>
-                            <p className="mt-1 font-semibold text-slate-900">
-                              {new Date(booking.createdAt).toLocaleDateString()}
-                            </p>
-                          </div>
+                        <div className="lg:w-64 space-y-4">
+                           <div className="grid grid-cols-2 gap-3">
+                              <DataTile label="Duration" value={booking.startDate + ' to ' + booking.endDate} full />
+                              <DataTile label="Occupants" value={booking.people_count + ' Person'} />
+                              <DataTile label="Payout" value={booking.totalPrice + ' EGY'} highlight />
+                           </div>
 
-                          <div className="mt-4 flex flex-col gap-3">
-                            <button
-                              type="button"
-                              onClick={() => navigate(`/apartment/${booking.apartment?._id}`)}
-                              className="rounded-2xl bg-slate-900 px-4 py-3 font-semibold text-white transition hover:bg-slate-800"
-                            >
-                              View apartment
-                            </button>
-
-                            {booking.status === 'pending' && (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => updateBookingStatus(booking._id, 'approved')}
-                                  className="rounded-2xl bg-emerald-600 px-4 py-3 font-semibold text-white transition hover:bg-emerald-700"
-                                >
-                                  Approve
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => updateBookingStatus(booking._id, 'declined')}
-                                  className="rounded-2xl bg-rose-600 px-4 py-3 font-semibold text-white transition hover:bg-rose-700"
-                                >
-                                  Decline
-                                </button>
-                              </>
-                            )}
-                          </div>
+                           <div className="flex flex-col gap-2 pt-2">
+                             {booking.status === 'pending' && (
+                               <div className="flex gap-2">
+                                 <button onClick={() => handleUpdateStatus(booking._id, 'accepted')} className="flex-1 py-4 rounded-2xl bg-emerald-600 text-white font-bold text-xs uppercase hover:bg-emerald-700 transition shadow-lg shadow-emerald-200">Approve</button>
+                                 <button onClick={() => handleUpdateStatus(booking._id, 'rejected')} className="flex-1 py-4 rounded-2xl bg-rose-600 text-white font-bold text-xs uppercase hover:bg-rose-700 transition shadow-lg shadow-rose-200">Decline</button>
+                               </div>
+                             )}
+                             <button 
+                                onClick={() => handleChatStudent(booking)}
+                                className="w-full py-4 rounded-2xl bg-slate-900 text-white font-bold text-xs uppercase hover:bg-slate-800 transition flex items-center justify-center gap-2 shadow-lg shadow-slate-200"
+                             >
+                               <i className="fas fa-comment-dots"></i>
+                               Chat Student
+                             </button>
+                           </div>
                         </div>
                       </div>
                     </div>
@@ -225,12 +258,46 @@ export const BookingRequests = () => {
             })}
           </div>
         ) : (
-          <div className="rounded-[28px] bg-white py-20 text-center shadow-sm">
-            <i className="fas fa-calendar-xmark text-6xl text-slate-300 mb-5"></i>
-            <p className="text-lg font-bold text-slate-900">No booking requests yet</p>
+          <div className="rounded-[40px] bg-white py-24 text-center border border-slate-100 shadow-sm">
+             <i className="fas fa-inbox text-5xl text-slate-200 mb-6"></i>
+             <h3 className="text-2xl font-black text-slate-900">No active requests</h3>
+             <p className="text-slate-400 font-medium">Student housing applications will appear here.</p>
           </div>
         )}
       </div>
+
+      {/* Feedback Popup */}
+      {feedback.show && (
+        <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[200] animate-in slide-in-from-top duration-300">
+           <div className={`rounded-3xl shadow-2xl px-8 py-6 flex items-center gap-4 border ${
+             feedback.type === 'success' ? 'bg-white border-emerald-100' : 'bg-white border-rose-100'
+           }`}>
+             <div className={`h-12 w-12 rounded-2xl flex items-center justify-center text-xl ${
+               feedback.type === 'success' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
+             }`}>
+               <i className={`fas ${feedback.type === 'success' ? 'fa-check-circle' : 'fa-times-circle'}`}></i>
+             </div>
+             <div>
+               <h4 className="text-lg font-black text-slate-900">{feedback.title}</h4>
+               <p className="text-slate-500 font-medium text-sm">{feedback.message}</p>
+             </div>
+           </div>
+        </div>
+      )}
     </div>
   );
 };
+
+const StatCard = ({ label, value, color }) => (
+  <div className="rounded-[28px] bg-white p-6 border border-slate-100 shadow-sm">
+    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{label}</p>
+    <p className={`mt-2 text-4xl font-black ${color}`}>{value}</p>
+  </div>
+);
+
+const DataTile = ({ label, value, highlight, full }) => (
+  <div className={`p-4 bg-slate-50 rounded-2xl border border-slate-100 ${full ? 'col-span-2' : ''}`}>
+    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{label}</p>
+    <p className={`text-xs font-black mt-1 truncate ${highlight ? 'text-primary' : 'text-slate-900'}`}>{value}</p>
+  </div>
+);
