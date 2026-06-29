@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Navbar } from '../components/Navbar';
-import { bookingsAPI, getApiErrorMessage } from '../services/api';
+import { apiClient, bookingsAPI, getApiErrorMessage } from '../services/api';
 import { useStoreVersion } from '../hooks/useStoreVersion';
 import { useAuth } from '../context/AuthContext';
 import { APARTMENT_PLACEHOLDER } from '../utils/placeholders';
@@ -85,8 +85,10 @@ export const MyBookings = () => {
     setRatingError({ bookingId: '', message: '' });
 
     try {
-      const response = await bookingsAPI.rateBooking({ bookingId, rating });
-      const updatedBooking = response.data;
+      const response = await apiClient.post(`/bookings/${bookingId}/rating`, {
+        rating: Number(rating),
+      });
+      const updatedBooking = response.data?.booking || response.data?.data?.booking || response.data;
 
       setBookings((currentBookings) =>
         currentBookings.map((item) =>
