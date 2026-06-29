@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { Navbar } from '../components/Navbar';
-import { apartmentsAPI, bookingsAPI, chatAPI, reviewsAPI } from '../services/api';
+import { apartmentsAPI, bookingsAPI, chatAPI, getApiErrorMessage, reviewsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useStoreVersion } from '../hooks/useStoreVersion';
 import { getApiErrorMessage, apiClient } from '../services/apiClient';
@@ -220,7 +220,7 @@ export const ApartmentDetails = () => {
       setIsBookingModalOpen(false);
       setTimeout(() => navigate('/my-bookings'), 2000);
     } catch (error) {
-      setBookingError(getApiErrorMessage(error, 'Unable to create booking'));
+      alert(getApiErrorMessage(error, 'Failed to create booking'));
     } finally {
       setBookingLoading(false);
     }
