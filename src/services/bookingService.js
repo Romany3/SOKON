@@ -89,6 +89,8 @@ export const mapBooking = (booking) => {
     checkInDate: normalizeDate(booking.checkInDate || booking.startDate || booking.start_date),
     checkOutDate: normalizeDate(booking.checkOutDate || booking.endDate || booking.end_date),
     requestedOccupants: Number(booking.requestedOccupants || booking.people_count || booking.peopleCount || 1),
+    rating: Number(booking.rating || 0),
+    ratedAt: booking.ratedAt || booking.rated_at || '',
     message: booking.message || booking.note || booking.notes || '',
     createdAt: booking.createdAt || booking.created_at || booking.timestamp || '',
     apartment,

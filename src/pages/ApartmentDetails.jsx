@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Navbar } from '../components/Navbar';
-import { apartmentsAPI, bookingsAPI, chatAPI, reviewsAPI } from '../services/api';
+import { apartmentsAPI, bookingsAPI, chatAPI, getApiErrorMessage, reviewsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useStoreVersion } from '../hooks/useStoreVersion';
 import { AVATAR_SM_PLACEHOLDER } from '../utils/placeholders';
@@ -113,7 +113,7 @@ export const ApartmentDetails = () => {
       const response = await apartmentsAPI.getApartment(id);
       setApartment(response.data);
     } catch (err) {
-      alert(err?.message || err.response?.data?.message || 'Failed to submit review');
+      alert(getApiErrorMessage(err, 'Failed to submit review'));
     } finally {
       setSubmittingReview(false);
     }
@@ -209,7 +209,7 @@ export const ApartmentDetails = () => {
         navigate('/my-bookings');
       }, 1800);
     } catch (error) {
-      alert(error?.message || error.response?.data?.message || 'Failed to create booking');
+      alert(getApiErrorMessage(error, 'Failed to create booking'));
     } finally {
       setBookingLoading(false);
     }
