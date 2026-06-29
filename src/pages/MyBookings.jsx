@@ -101,48 +101,6 @@ export const MyBookings = () => {
     }
   };
 
-  const canRateBooking = (booking) => (
-    Boolean(booking?._id || booking?.id) &&
-    ['approved', 'confirmed'].includes(booking.status)
-  );
-
-  const handleRateBooking = async (booking, rating) => {
-    const bookingId = booking?._id || booking?.id;
-
-    if (!bookingId || savingRatingId) {
-      return;
-    }
-
-    setSavingRatingId(bookingId);
-    setRatingError({ bookingId: '', message: '' });
-
-    try {
-      const response = await bookingsAPI.rateBooking({ bookingId, rating });
-      const updatedBooking = response.data;
-
-      setBookings((currentBookings) =>
-        currentBookings.map((item) =>
-          (item._id || item.id) === bookingId
-            ? {
-                ...item,
-                ...updatedBooking,
-                rating,
-                ratedAt: updatedBooking?.ratedAt || updatedBooking?.rated_at || new Date().toISOString(),
-              }
-            : item,
-        ),
-      );
-    } catch (error) {
-      console.error('Error rating booking:', error);
-      setRatingError({
-        bookingId,
-        message: getApiErrorMessage(error, 'Failed to save rating.'),
-      });
-    } finally {
-      setSavingRatingId('');
-    }
-  };
-
   return (
     <div className="min-h-screen bg-[#f6f7fb]">
       <Navbar />
