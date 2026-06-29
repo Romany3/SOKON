@@ -1,16 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Navbar } from '../components/Navbar';
-import { bookingsAPI } from '../services/api';
-import { useAuth } from '../context/AuthContext';
+import { bookingsAPI, getApiErrorMessage } from '../services/api';
 import { useStoreVersion } from '../hooks/useStoreVersion';
+import { useAuth } from '../context/AuthContext';
 import { APARTMENT_PLACEHOLDER } from '../utils/placeholders';
 
 const statusStyles = {
   pending: 'bg-amber-100 text-amber-700',
   accepted: 'bg-emerald-100 text-emerald-700',
   approved: 'bg-emerald-100 text-emerald-700',
-  rejected: 'bg-rose-100 text-rose-700',
+  confirmed: 'bg-emerald-100 text-emerald-700',
   declined: 'bg-rose-100 text-rose-700',
   cancelled: 'bg-slate-100 text-slate-600',
   completed: 'bg-blue-100 text-blue-700',
@@ -22,14 +22,21 @@ export const MyBookings = () => {
   const storeVersion = useStoreVersion();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [savingRatingId, setSavingRatingId] = useState('');
+  const [ratingError, setRatingError] = useState({ bookingId: '', message: '' });
 
   useEffect(() => {
     const loadBookings = async () => {
-      if (!user?._id) return;
+      const userId = user?._id || user?.id;
+      if (!userId) {
+        setBookings([]);
+        setLoading(false);
+        return;
+      }
       setLoading(true);
 
       try {
-        const response = await bookingsAPI.getStudentBookings(user._id);
+        const response = await bookingsAPI.getStudentBookings(userId);
         const data = response.data?.bookings || response.data || [];
         // Sort newest first
         setBookings(data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
@@ -41,12 +48,12 @@ export const MyBookings = () => {
     };
 
     loadBookings();
-  }, [user?._id, storeVersion]);
+  }, [user?._id, user?.id, storeVersion]);
 
   const totals = useMemo(() => ({
     total: bookings.length,
     pending: bookings.filter((b) => b.status === 'pending').length,
-    approved: bookings.filter((b) => b.status === 'accepted' || b.status === 'approved').length,
+    approved: bookings.filter((b) => ['accepted', 'approved', 'confirmed'].includes(b.status)).length,
   }), [bookings]);
 
   const handleCancelBooking = async (id) => {
@@ -59,6 +66,48 @@ export const MyBookings = () => {
     } catch (error) {
       console.error('Error cancelling booking:', error);
       alert('Failed to cancel booking. Please try again.');
+    }
+  };
+
+  const canRateBooking = (booking) => (
+    Boolean(booking?._id || booking?.id) &&
+    ['accepted', 'approved', 'confirmed', 'completed'].includes(booking.status)
+  );
+
+  const handleRateBooking = async (booking, rating) => {
+    const bookingId = booking?._id || booking?.id;
+
+    if (!bookingId || savingRatingId) {
+      return;
+    }
+
+    setSavingRatingId(bookingId);
+    setRatingError({ bookingId: '', message: '' });
+
+    try {
+      const response = await bookingsAPI.rateBooking({ bookingId, rating });
+      const updatedBooking = response.data;
+
+      setBookings((currentBookings) =>
+        currentBookings.map((item) =>
+          (item._id || item.id) === bookingId
+            ? {
+                ...item,
+                ...updatedBooking,
+                rating,
+                ratedAt: updatedBooking?.ratedAt || updatedBooking?.rated_at || new Date().toISOString(),
+              }
+            : item,
+        ),
+      );
+    } catch (error) {
+      console.error('Error rating booking:', error);
+      setRatingError({
+        bookingId,
+        message: getApiErrorMessage(error, 'Failed to save rating.'),
+      });
+    } finally {
+      setSavingRatingId('');
     }
   };
 
@@ -178,6 +227,54 @@ export const MyBookings = () => {
                            )}
                         </div>
                       </div>
+
+                      {canRateBooking(booking) && (
+                        <div className="mt-6 rounded-2xl bg-slate-50 px-4 py-4">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <p className="text-sm font-semibold text-slate-900">
+                                {booking.rating > 0 ? 'Your rating' : 'Rate your stay'}
+                              </p>
+                              {booking.ratedAt && (
+                                <p className="mt-1 text-xs text-slate-500">
+                                  Saved {new Date(booking.ratedAt).toLocaleDateString()}
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-1">
+                              {[1, 2, 3, 4, 5].map((rating) => {
+                                const isSelected = rating <= Number(booking.rating || 0);
+                                const isSaving = savingRatingId === (booking._id || booking.id);
+
+                                return (
+                                  <button
+                                    key={rating}
+                                    type="button"
+                                    onClick={() => handleRateBooking(booking, rating)}
+                                    disabled={isSaving}
+                                    aria-label={`Rate ${rating} star${rating === 1 ? '' : 's'}`}
+                                    className={`h-10 w-10 rounded-full text-xl transition ${
+                                      isSelected
+                                        ? 'text-amber-400 hover:text-amber-500'
+                                        : 'text-slate-300 hover:text-amber-400'
+                                    } disabled:cursor-wait disabled:opacity-60`}
+                                  >
+                                    <i className={`${isSelected ? 'fa-solid' : 'fa-regular'} fa-star`}></i>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {savingRatingId === (booking._id || booking.id) && (
+                            <p className="mt-3 text-sm font-semibold text-slate-500">Saving rating...</p>
+                          )}
+                          {ratingError.bookingId === (booking._id || booking.id) && ratingError.message && (
+                            <p className="mt-3 text-sm font-semibold text-rose-600">{ratingError.message}</p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
