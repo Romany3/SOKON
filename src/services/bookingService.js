@@ -137,17 +137,19 @@ export const mapBooking = (booking) => {
 
   return {
     ...booking,
-    _id: String(bId),
-    id: String(bId),
-    apartmentId: String(apartmentId),
-    clientId: String(studentId),
-    status: normalizeStatus(b.status),
-    startDate: normalizeDate(b.startDate || b.checkInDate || b.start_date || b.check_in || ''),
-    endDate: normalizeDate(b.endDate || b.checkOutDate || b.end_date || b.check_out || ''),
-    people_count: Number(b.people_count || b.requestedOccupants || 1),
-    totalPrice: Number(b.totalPrice || 0),
-    message: b.message || '',
-    createdAt: b.createdAt || b.created_at || '',
+    _id: booking.id || booking._id || booking.bookingId || booking.booking_id || '',
+    id: booking.id || booking._id || booking.bookingId || booking.booking_id || '',
+    apartmentId: booking.apartmentId || booking.apartment?._id || booking.apartment?.id || '',
+    ownerId: booking.ownerId || booking.apartment?.owner?._id || booking.apartment?.owner?.id || '',
+    clientId: booking.clientId || student?._id || student?.id || '',
+    status: normalizeStatus(booking.status),
+    checkInDate: normalizeDate(booking.checkInDate || booking.startDate || booking.start_date),
+    checkOutDate: normalizeDate(booking.checkOutDate || booking.endDate || booking.end_date),
+    requestedOccupants: Number(booking.requestedOccupants || booking.people_count || booking.peopleCount || 1),
+    rating: Number(booking.rating || 0),
+    ratedAt: booking.ratedAt || booking.rated_at || '',
+    message: booking.message || booking.note || booking.notes || '',
+    createdAt: booking.createdAt || booking.created_at || booking.timestamp || '',
     apartment,
     student,
   };
@@ -167,7 +169,7 @@ export const bookingsAPI = {
       const list = res.data?.bookings || [];
       const exists = list.some(b => 
         String(b.apartmentId) === String(apartmentId) && 
-        ['pending', 'approved', 'accepted'].includes(b.status)
+        ['pending', 'approved', 'accepted', 'confirmed'].includes(b.status)
       );
       return { exists };
     }
