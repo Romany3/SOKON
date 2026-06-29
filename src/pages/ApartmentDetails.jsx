@@ -33,6 +33,7 @@ export const ApartmentDetails = () => {
 
   const [reviews, setReviews] = useState([]);
   const [hasActiveBooking, setHasActiveBooking] = useState(false);
+  const [hasApprovedBooking, setHasApprovedBooking] = useState(false);
   const [newReview, setNewReview] = useState({ rating: 5 });
   const [submittingReview, setSubmittingReview] = useState(false);
 
@@ -91,7 +92,21 @@ export const ApartmentDetails = () => {
 
         if (user) {
           const checkRes = await bookingsAPI.checkActiveBooking(user._id, id);
-          setHasActiveBooking(checkRes.exists);
+          setHasActiveBooking(Boolean(checkRes.exists || checkRes.active));
+
+          const bookingsRes = await bookingsAPI.getStudentBookings(user._id);
+          const userBookings = bookingsRes.data?.bookings || [];
+          const approvedBooking = userBookings.some((booking) => {
+            const bookingApartmentId = booking.apartmentId || booking.apartment?._id || booking.apartment?.id;
+            return (
+              String(bookingApartmentId) === String(id) &&
+              ['accepted', 'approved', 'confirmed', 'completed'].includes(booking.status)
+            );
+          });
+          setHasApprovedBooking(approvedBooking);
+        } else {
+          setHasActiveBooking(false);
+          setHasApprovedBooking(false);
         }
       } catch (error) {
         console.error('Error loading page data:', error);
@@ -173,7 +188,7 @@ export const ApartmentDetails = () => {
     setBookingLoading(true);
     try {
       const checkRes = await bookingsAPI.checkActiveBooking(user?._id, id);
-      if (checkRes.exists) {
+      if (checkRes.exists || checkRes.active) {
         setHasActiveBooking(true);
         alert('You already have an active booking for this apartment');
         return;
@@ -236,7 +251,15 @@ export const ApartmentDetails = () => {
   };
 
   const images = apartment?.images || [];
-  const availableSpots = Math.max(Number(apartment?.available_people ?? apartment?.max_people ?? 0) - Number(apartment?.occupiedCount || 0), 0);
+  const capacity = Number(apartment?.max_people ?? apartment?.capacity ?? 0);
+  const availableSpots = Math.max(
+    Math.min(Number(apartment?.available_people ?? capacity) || 0, capacity || Number.MAX_SAFE_INTEGER),
+    0,
+  );
+  const occupiedCount = capacity > 0
+    ? Math.max(capacity - availableSpots, 0)
+    : Number(apartment?.occupiedCount || 0);
+  const occupancyPercent = capacity > 0 ? Math.min((occupiedCount / capacity) * 100, 100) : 0;
   const canShowChatButton = !user || userRole !== 'owner';
 
   const apartmentLat = apartment?.latitude || apartment?.lat;
@@ -353,12 +376,12 @@ export const ApartmentDetails = () => {
                    <h3 className="font-black text-slate-900 mb-4 text-lg">Unit Status</h3>
                    <div className="flex justify-between items-center mb-2">
                      <span className="text-sm text-slate-500 font-bold">Occupancy</span>
-                     <span className="text-sm font-black text-slate-900">{apartment.occupiedCount || 0} / {apartment.max_people}</span>
+                     <span className="text-sm font-black text-slate-900">{occupiedCount} / {capacity}</span>
                    </div>
                    <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
-                      <div className="h-full bg-primary" style={{ width: `${(apartment.occupiedCount / apartment.max_people) * 100}%` }}></div>
+                      <div className="h-full bg-primary" style={{ width: `${occupancyPercent}%` }}></div>
                    </div>
-                   <p className="mt-4 text-xs text-slate-400 font-medium italic">Available Spots: {apartment.available_people || availableSpots}</p>
+                   <p className="mt-4 text-xs text-slate-400 font-medium italic">Available Spots: {availableSpots}</p>
                 </div>
               </div>
             </div>
@@ -430,7 +453,7 @@ export const ApartmentDetails = () => {
                   </div>
                 </div>
 
-                {hasActiveBooking && isUserStudent && (
+                {hasApprovedBooking && isUserStudent && (
                   <form onSubmit={handleReviewSubmit} className="flex flex-col gap-3 md:items-end">
                     <div className="flex items-center gap-2">
                       {Array.from({ length: 5 }).map((_, i) => (
