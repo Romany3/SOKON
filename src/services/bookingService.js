@@ -9,6 +9,7 @@ const asArray = (value) => {
 
 const normalizeStatus = (status) => {
   const value = `${status || 'pending'}`.trim().toLowerCase();
+  // Standardizing statuses for UI labels: Pending, Accepted, Rejected, Cancelled
   if (value === 'accepted' || value === 'approved') return 'accepted';
   if (value === 'rejected' || value === 'declined') return 'rejected';
   if (value === 'canceled' || value === 'cancelled') return 'cancelled';
@@ -17,8 +18,14 @@ const normalizeStatus = (status) => {
 
 const normalizeDate = (value) => {
   if (!value) return '';
-  if (typeof value === 'string' && value.includes('T')) return value.slice(0, 10);
-  return value;
+  // Handle ISO strings, timestamps, or date objects
+  try {
+    const date = new Date(value);
+    if (isNaN(date.getTime())) return value; // Return raw if invalid but exists
+    return date.toLocaleDateString();
+  } catch (e) {
+    return value;
+  }
 };
 
 export const mapBooking = (booking) => {
@@ -26,26 +33,22 @@ export const mapBooking = (booking) => {
 
   const b = booking;
 
-  // 1. Resilient Apartment Information Extraction
+  // 1. Resilient Apartment Mapping
   const aptData = b.apartment || {};
   const apartmentId = b.apartmentId || b.apartment_id || aptData._id || aptData.id || '';
   const apartmentName = b.apartmentName || b.apartment_name || b.apartmentTitle || aptData.title || aptData.name || 'Apartment';
   const apartmentAddress = b.apartmentAddress || b.apartment_address || b.address || aptData.address || '';
   
-  // Try to find a valid image URL from all possible fields on the booking and its nested apartment object
   const apartmentImage = 
     b.apartmentImage || 
     b.apartment_image || 
     b.apartmentImageUrl ||
-    b.apartment_image_url ||
     b.image || 
     b.image_url ||
     (Array.isArray(aptData.images) && aptData.images[0]) || 
     aptData.image || 
     aptData.imageUrl ||
-    aptData.image_url ||
     aptData.photo ||
-    b.apartment_photo ||
     '';
 
   const apartment = mapApartment({
@@ -62,7 +65,6 @@ export const mapBooking = (booking) => {
   // 2. Resilient Student/Client Mapping
   const stuData = b.student || b.client || b.user || {};
   
-  // Find Student ID from every possible field
   const studentId = 
     b.clientId || 
     b.client_id || 
@@ -74,7 +76,6 @@ export const mapBooking = (booking) => {
     stuData.id || 
     '';
 
-  // Find Student Name
   const studentName = 
     b.studentName || 
     b.student_name || 
@@ -88,7 +89,6 @@ export const mapBooking = (booking) => {
     stuData.name || 
     'Student';
 
-  // Find Student Avatar
   const studentAvatar = 
     b.studentPhoto || 
     b.student_photo || 
@@ -102,7 +102,6 @@ export const mapBooking = (booking) => {
     stuData.photoUrl || 
     '';
 
-  // Find Student Faculty/College
   const studentFaculty = 
     b.studentFaculty || 
     b.student_faculty ||
@@ -143,8 +142,8 @@ export const mapBooking = (booking) => {
     apartmentId: String(apartmentId),
     clientId: String(studentId),
     status: normalizeStatus(b.status),
-    startDate: normalizeDate(b.startDate || b.checkInDate || b.start_date || ''),
-    endDate: normalizeDate(b.endDate || b.checkOutDate || b.end_date || ''),
+    startDate: normalizeDate(b.startDate || b.checkInDate || b.start_date || b.check_in || ''),
+    endDate: normalizeDate(b.endDate || b.checkOutDate || b.end_date || b.check_out || ''),
     people_count: Number(b.people_count || b.requestedOccupants || 1),
     totalPrice: Number(b.totalPrice || 0),
     message: b.message || '',

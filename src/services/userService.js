@@ -181,6 +181,7 @@ export const updateCurrentUser = async (userId, data = {}) => {
 };
 
 export const deleteCurrentUser = async (password) => {
+  // The backend expects DELETE /auth/account with { password } in the request body
   const config = password ? { data: { password } } : {};
   const response = await apiClient.delete('/auth/account', config);
   clearStoredSession();

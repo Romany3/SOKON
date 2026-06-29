@@ -11,6 +11,8 @@ export const AdminUserDetails = () => {
   const [user, setUser] = useState(null);
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -32,6 +34,19 @@ export const AdminUserDetails = () => {
     fetchData();
   }, [userId]);
 
+  const handleDeleteUser = async () => {
+    setDeleteLoading(true);
+    try {
+      await usersAPI.deleteUserById(userId);
+      alert('Account deleted successfully');
+      navigate('/admin/users');
+    } catch (err) {
+      alert(getApiErrorMessage(err, 'Failed to delete account'));
+    } finally {
+      setDeleteLoading(false);
+      setIsDeleteModalOpen(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -90,6 +105,12 @@ export const AdminUserDetails = () => {
                   className="w-full py-4 rounded-2xl bg-slate-900 text-white font-bold hover:opacity-90 transition shadow-lg shadow-slate-200"
                  >
                    Send Private Message
+                 </button>
+                 <button 
+                  onClick={() => setIsDeleteModalOpen(true)}
+                  className="w-full py-4 rounded-2xl bg-red-50 text-red-600 font-bold hover:bg-red-100 transition"
+                 >
+                   Delete Account
                  </button>
               </div>
             </div>
@@ -169,6 +190,43 @@ export const AdminUserDetails = () => {
           </div>
         </div>
       </main>
+
+      {/* Delete Confirmation Modal */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 px-4 py-6 backdrop-blur-sm">
+          <div className="relative w-full max-w-md rounded-[32px] bg-white p-8 shadow-2xl">
+            <div className="h-16 w-16 rounded-2xl flex items-center justify-center text-2xl mb-6 bg-red-50 text-red-600">
+              <i className="fas fa-trash-alt"></i>
+            </div>
+            
+            <h3 className="text-2xl font-black text-slate-900 mb-2">Delete User Account</h3>
+            <p className="text-slate-500 mb-8 leading-relaxed">
+              Are you sure you want to permanently delete <span className="font-bold text-slate-900">{user.fullName}</span>'s account? 
+              This action is irreversible and will remove all their data from the platform.
+            </p>
+
+            <div className="flex gap-4">
+              <button
+                type="button"
+                onClick={() => setIsDeleteModalOpen(false)}
+                className="flex-1 py-4 rounded-2xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 transition"
+                disabled={deleteLoading}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteUser}
+                disabled={deleteLoading}
+                className="flex-1 py-4 rounded-2xl bg-red-600 text-white font-bold hover:bg-red-700 transition shadow-lg shadow-red-200 flex items-center justify-center gap-2"
+              >
+                {deleteLoading && <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
+                Confirm Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

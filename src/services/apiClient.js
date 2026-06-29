@@ -1,7 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || 'https://grad-project-master.onrender.com/api/v1';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -35,23 +34,32 @@ export const emitStoreChange = () => {
   listeners.forEach((listener) => listener());
 };
 
-export const getStoredAccessToken = () =>
-  typeof window === 'undefined' ? null : window.localStorage.getItem('accessToken');
+export const getStoredAccessToken = () => {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.localStorage.getItem('accessToken');
+  } catch (e) {
+    return null;
+  }
+};
 
 export const setStoredAccessToken = (token) => {
   if (typeof window === 'undefined') {
     return;
   }
 
-  if (token) {
-    window.localStorage.setItem('accessToken', token);
-    // Set login timestamp when token is saved
-    window.localStorage.setItem('loginTimestamp', Date.now().toString());
-    return;
-  }
+  try {
+    if (token) {
+      window.localStorage.setItem('accessToken', token);
+      window.localStorage.setItem('loginTimestamp', Date.now().toString());
+      return;
+    }
 
-  window.localStorage.removeItem('accessToken');
-  window.localStorage.removeItem('loginTimestamp');
+    window.localStorage.removeItem('accessToken');
+    window.localStorage.removeItem('loginTimestamp');
+  } catch (e) {
+    console.error('Failed to update accessToken in storage', e);
+  }
 };
 
 export const getStoredUser = () => {
@@ -72,19 +80,27 @@ export const setStoredUser = (user) => {
     return;
   }
 
-  if (user) {
-    window.localStorage.setItem('user', JSON.stringify(user));
-    return;
-  }
+  try {
+    if (user) {
+      window.localStorage.setItem('user', JSON.stringify(user));
+      return;
+    }
 
-  window.localStorage.removeItem('user');
+    window.localStorage.removeItem('user');
+  } catch (e) {
+    console.error('Failed to update user in storage', e);
+  }
 };
 
 export const clearStoredSession = () => {
   if (typeof window !== 'undefined') {
-    window.localStorage.removeItem('accessToken');
-    window.localStorage.removeItem('user');
-    window.localStorage.removeItem('loginTimestamp');
+    try {
+      window.localStorage.removeItem('accessToken');
+      window.localStorage.removeItem('user');
+      window.localStorage.removeItem('loginTimestamp');
+    } catch (e) {
+      // ignore
+    }
   }
 
   delete apiClient.defaults.headers.common.Authorization;
@@ -98,16 +114,27 @@ export const clearStoredSession = () => {
 export const isSessionExpired = () => {
   if (typeof window === 'undefined') return false;
   
-  const loginTimestamp = window.localStorage.getItem('loginTimestamp');
-  if (!loginTimestamp) return false;
+  try {
+    const loginTimestamp = window.localStorage.getItem('loginTimestamp');
+    if (!loginTimestamp) return false;
 
-  const thirtyDaysInMs = 30 * 24 * 60 * 60 * 1000;
-  const now = Date.now();
-  
-  return now - parseInt(loginTimestamp, 10) > thirtyDaysInMs;
+    const thirtyDaysInMs = 30 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    
+    return now - parseInt(loginTimestamp, 10) > thirtyDaysInMs;
+  } catch (e) {
+    return true;
+  }
 };
 
 export const getApiErrorMessage = (error, fallback = 'Something went wrong. Please try again.') => {
+  if (!error) return fallback;
+  
+  // Handle network errors or cancelled requests
+  if (!error.response) {
+    return 'Network error. Please check your internet connection.';
+  }
+
   const data = error?.response?.data;
 
   if (Array.isArray(data?.errors) && data.errors.length > 0) {
@@ -233,6 +260,11 @@ apiClient.interceptors.request.use((config) => {
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
+    // If no response (network error), don't trigger auto-redirect
+    if (!error.response) {
+      return Promise.reject(error);
+    }
+
     const status = error?.response?.status;
     const requestUrl = error?.config?.url || '';
     const isAuthRoute = authPaths.some((route) => requestUrl.includes(route));

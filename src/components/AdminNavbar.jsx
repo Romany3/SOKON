@@ -1,32 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { notificationsAPI } from '../services/api';
 import { AVATAR_SM_PLACEHOLDER } from '../utils/placeholders';
 
 export const AdminNavbar = () => {
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
-
-  useEffect(() => {
-    const fetchNotifications = async () => {
-      if (!user?._id) return;
-      try {
-        const res = await notificationsAPI.getNotifications(user._id);
-        const list = res.data?.notifications || [];
-        setUnreadCount(list.filter(n => !n.isRead).length);
-      } catch (err) {
-        console.error('Error fetching admin notifications:', err);
-      }
-    };
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30000); // Check every 30s
-    return () => clearInterval(interval);
-  }, [user?._id]);
 
   const handleLogout = async () => {
     await logout();
@@ -38,7 +20,6 @@ export const AdminNavbar = () => {
     { name: 'Users', path: '/admin/users', icon: 'fas fa-users' },
     { name: 'Apartments', path: '/admin/apartments', icon: 'fas fa-building' },
     { name: 'Messages', path: '/admin/messages', icon: 'fas fa-comments' },
-    { name: 'Broadcast', path: '/admin/broadcast', icon: 'fas fa-bullhorn' },
     { name: 'Audit Logs', path: '/admin/logs', icon: 'fas fa-clipboard-list' },
   ];
 

@@ -71,7 +71,7 @@ function AppShell() {
     return <Navigate to="/admin/dashboard" replace />;
   }
 
-  // Determine if chatbot should be hidden (Hide on Login, Register, Forgot Password, and Admin pages)
+  // Determine if chatbot should be hidden
   const isChatbotHidden = isAdminPath || pathname === '/login' || pathname === '/register' || pathname.startsWith('/forgot-password');
 
   return (
@@ -85,7 +85,6 @@ function AppShell() {
         <Route path="/forgot-password/verify" element={<VerifyEmail />} />
         <Route path="/forgot-password/reset" element={<ResetPassword />} />
 
-        {/* Public browsing routes */}
         <Route path="/apartments" element={<AllApartments />} />
         <Route path="/locations" element={<AllLocations />} />
         <Route path="/universities" element={<Universities />} />
@@ -264,7 +263,7 @@ function AppShell() {
 
       {!isAuthPage && !isAdminPath && <Loading visible={showSplash} />}
       
-      {/* AI Chatbot - Hidden on Admin and Auth pages */}
+      {/* AI Chatbot - Integrated into the platform */}
       {!isChatbotHidden && <AIChatbot />}
     </>
   );

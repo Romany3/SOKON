@@ -14,9 +14,6 @@ export const AdminUsers = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRole, setSelectedRole] = useState(roleFilter || 'all');
   const [sortOrder, setSortSortOrder] = useState('newest');
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [isActionModalOpen, setIsActionModalOpen] = useState(false);
-  const [actionType, setActionType] = useState(null); // 'suspend' or 'ban'
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -57,19 +54,6 @@ export const AdminUsers = () => {
 
     return result;
   }, [users, searchQuery, selectedRole, sortOrder]);
-
-  const handleAction = (user, type) => {
-    setSelectedUser(user);
-    setActionType(type);
-    setIsActionModalOpen(true);
-  };
-
-  const confirmAction = async () => {
-    // In a real app, call API to suspend/ban
-    console.log(`${actionType} user:`, selectedUser._id);
-    setIsActionModalOpen(false);
-    // Refresh or update local state
-  };
 
   return (
     <div className="min-h-screen bg-[#f8fafc]">
@@ -176,46 +160,6 @@ export const AdminUsers = () => {
           </div>
         )}
       </main>
-
-      {/* Action Confirmation Modal */}
-      {isActionModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 px-4 py-6 backdrop-blur-sm">
-          <div className="relative w-full max-w-md rounded-[32px] bg-white p-8 shadow-2xl">
-            <div className={`h-16 w-16 rounded-2xl flex items-center justify-center text-2xl mb-6 ${
-              actionType === 'ban' ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'
-            }`}>
-              <i className={actionType === 'ban' ? 'fas fa-user-slash' : 'fas fa-user-clock'}></i>
-            </div>
-            
-            <h3 className="text-2xl font-black text-slate-900 mb-2">
-              {actionType === 'ban' ? 'Ban User Permanently' : 'Suspend User'}
-            </h3>
-            <p className="text-slate-500 mb-8 leading-relaxed">
-              Are you sure you want to {actionType} <span className="font-bold text-slate-900">{selectedUser?.fullName}</span>? 
-              {actionType === 'ban' ? ' This action will permanently remove their access to the platform.' : ' This will temporarily disable their account.'}
-            </p>
-
-            <div className="flex gap-4">
-              <button
-                type="button"
-                onClick={() => setIsActionModalOpen(false)}
-                className="flex-1 py-4 rounded-2xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 transition"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={confirmAction}
-                className={`flex-1 py-4 rounded-2xl text-white font-bold transition shadow-lg ${
-                  actionType === 'ban' ? 'bg-red-600 shadow-red-200 hover:bg-red-700' : 'bg-amber-500 shadow-amber-200 hover:bg-amber-600'
-                }`}
-              >
-                Confirm {actionType}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
