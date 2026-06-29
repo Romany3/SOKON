@@ -43,58 +43,118 @@ export const AIChatbot = () => {
     setIsLoading(true);
 
     try {
-      // 1. Get AI response
+      // 1. Get AI response for the conversational part
       const response = await aiAPI.chat(userMessage);
       const data = response.data;
       
-      const aiText = data?.reply || data?.message || data?.text || data?.data?.reply || "I found some results for you.";
+      let aiText = data?.reply || data?.message || data?.text || data?.data?.reply || "";
       
-      // 2. Extract apartments from AI response if provided directly
-      let rawApartments = data?.apartments || data?.data?.apartments || data?.results || data?.data?.results || [];
-      let apartments = Array.isArray(rawApartments) ? rawApartments.map(mapApartment) : [];
+      // 2. Extract initial results from AI if provided
+      let rawResults = data?.apartments || data?.data?.apartments || data?.results || data?.data?.results || [];
+      let finalApartments = Array.isArray(rawResults) ? rawResults.map(mapApartment) : [];
 
-      // 3. Robust Fallback logic for Search
+      // 3. Natural Language Search & Filtering Logic
       const lowercaseMsg = userMessage.toLowerCase();
-      const isSearchIntent = lowercaseMsg.match(/(شقة|شقق|apartment|room|rent|price|beds|bedroom|location|district|في|under|below|less|أقل|ميزانية|سعر)/i);
-      const aiClaimsFound = aiText.match(/(لقيتلك|وجدت|found|here are|results|نتائج|كروت|تحت)/i);
+      
+      // Detect search intent across languages and key fields
+      const isSearchIntent = lowercaseMsg.match(/(شقة|شقق|apartment|room|rent|price|beds|bedroom|location|district|في|under|below|less|أقل|ميزانية|سعر|verified|موثق|حمام|bath|people|person|شخص|طلاب|floor|دور|city|مدينة|more|أكثر|فوق|above)/i);
 
-      if (apartments.length === 0 && (isSearchIntent || aiClaimsFound)) {
+      if (isSearchIntent) {
         try {
           const searchRes = await apartmentsAPI.getAllApartments();
           let allApts = searchRes.data?.apartments || [];
           
-          let filtered = [...allApts];
-
-          // Simple keyword filtering for fallback
-          const priceMatch = userMessage.match(/(under|below|less than|أقل من|تحت|ميزانية|سعر)\s*(\d+)/i);
-          if (priceMatch && priceMatch[2]) {
-            const maxPrice = parseInt(priceMatch[2]);
-            filtered = filtered.filter(apt => apt.price <= maxPrice);
-          }
-
-          const districts = ['فريال', 'سيد', 'الجمهورية', 'يسري راغب', 'قلتة', 'سيتي', 'شركة قلتة'];
-          const mentionedDistrict = districts.find(d => lowercaseMsg.includes(d));
-          if (mentionedDistrict) {
-            filtered = filtered.filter(apt => 
-              (apt.district && apt.district.includes(mentionedDistrict)) || 
-              (apt.address && apt.address.includes(mentionedDistrict))
-            );
-          }
-
-          apartments = filtered.slice(0, 5);
+          // Condition Extraction
+          const filters = {};
           
-          if (apartments.length === 0 && aiClaimsFound) {
-            apartments = allApts.slice(0, 2);
+          // Price filters (Max/Min)
+          const maxPriceMatch = lowercaseMsg.match(/(?:under|below|less than|max|تحت|أقل من|ميزانية|سعر)\s*(\d+)/i);
+          if (maxPriceMatch) filters.maxPrice = parseInt(maxPriceMatch[1]);
+          
+          const minPriceMatch = lowercaseMsg.match(/(?:more than|above|greater than|min|فوق|أكثر من|أعلى من)\s*(\d+)/i);
+          if (minPriceMatch) filters.minPrice = parseInt(minPriceMatch[1]);
+
+          // Bedrooms
+          const bedMatch = lowercaseMsg.match(/(\d+)\s*(?:bedroom|bed|غرف نوم|غرفة|سرير)/i) || lowercaseMsg.match(/(?:bedroom|bed|غرف نوم|غرفة|سرير)s?\s*(\d+)/i);
+          if (bedMatch) filters.bedrooms = parseInt(bedMatch[1] || bedMatch[2]);
+          
+          // Bathrooms
+          const bathMatch = lowercaseMsg.match(/(\d+)\s*(?:bathroom|bath|حمام)/i) || lowercaseMsg.match(/(?:bathroom|bath|حمام)s?\s*(\d+)/i);
+          if (bathMatch) filters.bathrooms = parseInt(bathMatch[1]);
+
+          // Capacity / Occupancy
+          const peopleMatch = lowercaseMsg.match(/(?:for|to|يسع|لعدد|عدد|capacity)\s*(\d+)\s*(?:people|person|students|شخص|طلاب)/i) || lowercaseMsg.match(/(\d+)\s*(?:people|person|students|شخص|طلاب)/i);
+          if (peopleMatch) filters.available_people = parseInt(peopleMatch[1]);
+
+          // Verified Status
+          if (lowercaseMsg.match(/(verified|trusted|موثق|مؤكد|حقيقي)/i)) filters.verified = true;
+
+          // Floor
+          const floorMatch = lowercaseMsg.match(/(?:floor|level|دور|طابق)\s*(\d+)/i) || lowercaseMsg.match(/(\d+)(?:st|nd|rd|th)?\s*(?:floor|level|دور|طابق)/i);
+          if (floorMatch) filters.floor = parseInt(floorMatch[1]);
+
+          // Location - City
+          const cities = ['assuit', 'asyut', 'أسيوط', 'cairo', 'القاهرة'];
+          const mentionedCity = cities.find(c => lowercaseMsg.includes(c));
+          if (mentionedCity) filters.city = mentionedCity;
+
+          // Location - District
+          const districts = ['فريال', 'سيد', 'الجمهورية', 'يسري راغب', 'قلتة', 'سيتي', 'شركة قلتة', 'feryal', 'sayed', 'gomhouria', 'qulta', 'city'];
+          const mentionedDistrict = districts.find(d => lowercaseMsg.includes(d));
+          if (mentionedDistrict) filters.district = mentionedDistrict;
+
+          // Apply filters dynamically
+          const filtered = allApts.filter(apt => {
+            if (filters.maxPrice && apt.price > filters.maxPrice) return false;
+            if (filters.minPrice && apt.price < filters.minPrice) return false;
+            if (filters.bedrooms && apt.bedrooms !== filters.bedrooms && apt.beds !== filters.bedrooms) return false;
+            if (filters.bathrooms && apt.bathrooms !== filters.bathrooms) return false;
+            if (filters.available_people && apt.available_people < filters.available_people) return false;
+            if (filters.verified && !apt.verified) return false;
+            if (filters.floor !== undefined && apt.floor !== filters.floor) return false;
+            
+            if (filters.city) {
+              const city = (apt.city || '').toLowerCase();
+              if (!city.includes('assuit') && !city.includes('asyut') && !city.includes('أسيوط') && !city.includes(filters.city)) return false;
+            }
+            
+            if (filters.district) {
+              const district = (apt.district || '').toLowerCase();
+              const address = (apt.address || '').toLowerCase();
+              if (!district.includes(filters.district) && !address.includes(filters.district)) return false;
+            }
+            
+            return true;
+          });
+
+          if (filtered.length > 0) {
+            finalApartments = filtered.slice(0, 5);
+            // If AI didn't provide a useful response, generate one
+            if (!aiText || aiText.includes("brain") || aiText.length < 5) {
+              aiText = `I found ${filtered.length} apartment${filtered.length > 1 ? 's' : ''} matching your criteria:`;
+            }
+          } else {
+            finalApartments = [];
+            aiText = "No apartments found matching your request.";
           }
         } catch (searchError) {
-          console.error("Manual search fallback failed:", searchError);
+          console.error("Chat search logic failed:", searchError);
         }
+      }
+
+      // Default fallback for generic queries
+      if (!aiText && finalApartments.length === 0) {
+        aiText = "I found some apartments you might like:";
+        try {
+          const res = await apartmentsAPI.getAllApartments();
+          finalApartments = (res.data?.apartments || []).slice(0, 2);
+        } catch (e) {}
       }
 
       setChatHistory(prev => [...prev, { 
         role: 'ai', 
         text: aiText,
-        apartments: apartments
+        apartments: finalApartments
       }]);
     } catch (error) {
       setChatHistory(prev => [...prev, { 
