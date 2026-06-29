@@ -1,10 +1,9 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { Navbar } from '../components/Navbar';
-import { apartmentsAPI, bookingsAPI, chatAPI, reviewsAPI } from '../services/api';
+import { apartmentsAPI, bookingsAPI, chatAPI, getApiErrorMessage, reviewsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useStoreVersion } from '../hooks/useStoreVersion';
-import { getApiErrorMessage, apiClient } from '../services/apiClient';
 import { AVATAR_SM_PLACEHOLDER } from '../utils/placeholders';
 
 export const ApartmentDetails = () => {
@@ -86,7 +85,9 @@ export const ApartmentDetails = () => {
         try {
           const resReviews = await reviewsAPI.getApartmentReviews(id);
           setReviews(resReviews.data?.reviews || []);
-        } catch (e) {}
+        } catch (e) {
+          console.warn('Reviews are not available yet.', e);
+        }
 
         if (user) {
           const checkRes = await bookingsAPI.checkActiveBooking(user._id, id);
@@ -111,6 +112,8 @@ export const ApartmentDetails = () => {
         comment: '',
       });
       setNewReview({ rating: 5 });
+      const resReviews = await reviewsAPI.getApartmentReviews(id);
+      setReviews(resReviews.data?.reviews || []);
       const response = await apartmentsAPI.getApartment(id);
       setApartment(response.data);
     } catch (err) {
@@ -220,7 +223,7 @@ export const ApartmentDetails = () => {
       setIsBookingModalOpen(false);
       setTimeout(() => navigate('/my-bookings'), 2000);
     } catch (error) {
-      setBookingError(getApiErrorMessage(error, 'Unable to create booking'));
+      alert(getApiErrorMessage(error, 'Failed to create booking'));
     } finally {
       setBookingLoading(false);
     }
@@ -402,6 +405,81 @@ export const ApartmentDetails = () => {
                  )}
               </div>
             )}
+
+            <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100 space-y-6">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-xs font-black uppercase text-slate-400 tracking-widest">Rating</p>
+                  <div className="mt-2 flex items-center gap-3">
+                    <span className="text-3xl font-black text-slate-900">
+                      {Number(apartment.rating_average || 0).toFixed(1)}
+                    </span>
+                    <div>
+                      <div className="flex items-center text-amber-400">
+                        {Array.from({ length: 5 }).map((_, i) => (
+                          <i
+                            key={i}
+                            className={`${i < Math.round(apartment.rating_average || 0) ? 'fa-solid' : 'fa-regular'} fa-star mr-1`}
+                          ></i>
+                        ))}
+                      </div>
+                      <p className="mt-1 text-xs font-bold text-slate-400">
+                        {apartment.rating_count || 0} rating{Number(apartment.rating_count || 0) === 1 ? '' : 's'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {hasActiveBooking && isUserStudent && (
+                  <form onSubmit={handleReviewSubmit} className="flex flex-col gap-3 md:items-end">
+                    <div className="flex items-center gap-2">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => setNewReview((current) => ({ ...current, rating: i + 1 }))}
+                          className="text-2xl text-amber-400 transition hover:scale-110"
+                          aria-label={`Rate ${i + 1} star${i === 0 ? '' : 's'}`}
+                        >
+                          <i className={`${i < newReview.rating ? 'fa-solid' : 'fa-regular'} fa-star`}></i>
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={submittingReview}
+                      className="rounded-2xl bg-primary px-5 py-3 text-sm font-black text-white transition hover:opacity-95 disabled:opacity-60"
+                    >
+                      {submittingReview ? 'Saving rating...' : 'Save rating'}
+                    </button>
+                  </form>
+                )}
+              </div>
+
+              {reviews.length > 0 && (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {reviews.map((review) => (
+                    <div key={review._id || review.id} className="rounded-2xl bg-white p-4 border border-slate-100">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <img
+                            src={review.userAvatar || AVATAR_SM_PLACEHOLDER}
+                            alt=""
+                            className="h-10 w-10 rounded-full object-cover"
+                          />
+                          <p className="truncate text-sm font-black text-slate-900">{review.userName}</p>
+                        </div>
+                        <div className="flex shrink-0 items-center text-xs text-amber-400">
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <i key={i} className={`${i < review.rating ? 'fa-solid' : 'fa-regular'} fa-star ml-1`}></i>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <div className="flex flex-col gap-4 sm:flex-row">
               {isUserStudent && !hasPhoneNumber ? (
